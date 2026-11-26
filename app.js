@@ -2108,7 +2108,7 @@ async function renderChatList(mode = 'main'){
   if (mode === 'main') {
     const byPartner = {};
     rows.forEach(r => { if (!r.c.is_group && r.otherId) (byPartner[r.otherId] = byPartner[r.otherId] || []).push(r); });
-    Object.values(byPartner).forEach(list => { if (list.length > 1) list.slice(1).forEach(r => { if (!r.lm) hiddenDupes.add(r.c.id); }); });
+    Object.values(byPartner).forEach(list => { if (list.length > 1) { const keeper = list.find(r => r.lm) || list[0]; list.forEach(r => { if (r !== keeper && !r.lm) hiddenDupes.add(r.c.id); }); } });
   }
   const shown = rows.filter(r => !hiddenDupes.has(r.c.id) && (mode === 'archived' ? !!r.myRow.archived : mode === 'restricted' ? !!r.myRow.restricted : (!r.myRow.archived && !r.myRow.restricted)));
   let html = shown.length ? shown.map(rowHtml).join('') : '<div class="empty">এখানে কিছু নেই</div>';
