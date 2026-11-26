@@ -16,6 +16,36 @@ let unreadNotifs = 0;
 let activeChat = null;    // conversation id open
 let chatChannel = null;
 let notifChannel = null;
+/* ---------- CHAT PACK state ---------- */
+let onlineIds = new Set();        // presence: user ids online right now
+let presenceChannel = null;
+let typingChannel = null;         // per-conversation typing broadcast channel
+let typingHideTimer = null;
+let lastTypingAt = 0;
+let replyTarget = null;           // message object being replied to
+let chatMeta = { conv: null, members: [], myRow: null, otherRow: null };
+let chatMsgs = [];                // messages of the open conversation, oldest first
+let chatMsgMap = {};              // id -> message (quote lookups)
+let chatReactions = {};          // message_id -> { emoji: {count, mine} }
+/* 12 chat themes: [key, color1, color2, Bangla label]. Bubble gradient = c1->c2 (white text stays
+   readable in light + dark); the chat area gets a soft tint from the same pair. */
+const CHAT_THEMES = [
+  ['beguni',   '#7C3AED', '#4F46E5', 'বেগুনি'],
+  ['nil',      '#2563EB', '#0891B2', 'নীল'],
+  ['shobuj',   '#059669', '#16A34A', 'সবুজ'],
+  ['golapi',   '#DB2777', '#F43F5E', 'গোলাপি'],
+  ['komola',   '#EA580C', '#D97706', 'কমলা'],
+  ['lal',      '#DC2626', '#B91C1C', 'লাল'],
+  ['teal',     '#0D9488', '#0E7490', 'টিল'],
+  ['dhushor',  '#64748B', '#475569', 'ধূসর-নীল'],
+  ['golden',   '#CA8A04', '#A16207', 'গোল্ডেন'],
+  ['garhonil', '#1D4ED8', '#1E3A8A', 'গাঢ় নীল'],
+  ['mint',     '#0CA678', '#099268', 'মিন্ট'],
+  ['peach',    '#F0764F', '#E14E63', 'পিচ']
+];
+function chatTheme(key){ return CHAT_THEMES.find(t => t[0] === key) || null; }
+/* language-aware label for strings rendered INSIDE .msg bubbles (the i18n DOM pass skips .msg) */
+const tx = (b, e) => LANG === 'en' ? e : b;
 
 const $ = s => document.querySelector(s);
 const view = () => $('#view');
@@ -125,6 +155,22 @@ const I18N = {
   /* shell / nav / auth */
   'হোম': 'Home', 'বন্ধু': 'Friend', 'চ্যাট': 'Chat', 'প্রোফাইল': 'Profile', 'আবিষ্কার': 'Explore',
   'খোঁজো': 'Search', 'নোটিফিকেশন': 'Notifications', 'স্টিকার': 'Stickers', 'ভয়েস মেসেজ': 'Voice message',
+  /* chat pack */
+  'মেসেজ অপশন': 'Message options', 'রিপ্লাই': 'Reply', 'কপি': 'Copy', 'কপি হয়েছে': 'Copied',
+  'সম্পাদনা': 'Edit', 'মেসেজ সম্পাদনা': 'Edit message', 'সেভ করো': 'Save', 'সবার জন্য মোছো': 'Delete for everyone',
+  'মেসেজ মোছা হয়েছে': 'Message deleted', 'চ্যাটের তথ্য': 'Chat info', 'ডাকনাম দাও': 'Set nickname', 'ডাকনাম': 'Nickname',
+  'চ্যাটের থিম': 'Chat theme', 'পিন করো': 'Pin chat', 'মিউট': 'Mute', 'আনমিউট': 'Unmute', 'ডিফল্ট': 'Default',
+  'ডিসঅ্যাপিয়ারিং মেসেজ': 'Disappearing messages',
+  'ডিসঅ্যাপিয়ারিং চালু — ২৪ ঘণ্টার পুরনো মেসেজ দেখা যায় না': 'Disappearing on — messages older than 24 hours are hidden',
+  'রিড রিসিপ্ট লুকাও': 'Hide read receipts', 'দেখা হয়েছে': 'Seen', 'ফাইল পাঠাও': 'Send a file',
+  'বেগুনি': 'Purple', 'নীল': 'Blue', 'সবুজ': 'Green', 'গোলাপি': 'Pink', 'কমলা': 'Orange', 'লাল': 'Red', 'টিল': 'Teal',
+  'ধূসর-নীল': 'Slate', 'গোল্ডেন': 'Golden', 'গাঢ় নীল': 'Deep blue', 'মিন্ট': 'Mint', 'পিচ': 'Peach',
+  'পিন করা হয়েছে': 'Pinned', 'পিন সরানো হয়েছে': 'Unpinned', 'মিউট করা হয়েছে': 'Muted', 'আনমিউট করা হয়েছে': 'Unmuted',
+  'ডাকনাম দেওয়া হয়েছে ✓': 'Nickname set ✓', 'সম্পাদনা হয়েছে ✓': 'Edited ✓', 'থিম বদলানো হয়েছে': 'Theme changed',
+  'ডিসঅ্যাপিয়ারিং চালু হয়েছে': 'Disappearing turned on', 'ডিসঅ্যাপিয়ারিং বন্ধ হয়েছে': 'Disappearing turned off',
+  'রিড রিসিপ্ট লুকানো হয়েছে': 'Read receipts hidden', 'রিড রিসিপ্ট দেখানো হবে': 'Read receipts will be shown',
+  'ফাইল আপলোড হচ্ছে...': 'Uploading file...', 'খালি মেসেজ হবে না': "Message can't be empty", 'ডাকনাম দেওয়া যাবে না': "Can't set a nickname here",
+  'সম্পাদিত': 'edited',
   'বন্ধ করো': 'Close', 'বন্ধুদের সাথে প্রতিদিনের আড্ডা, এক জায়গায়': 'Everyday adda with friends, in one place',
   'তোমার নাম': 'Your name', 'ইমেইল': 'Email', 'পাসওয়ার্ড (কমপক্ষে ৬ অক্ষর)': 'Password (at least 6 characters)',
   'লগ ইন': 'Log in', 'অ্যাকাউন্ট নেই?': "Don't have an account?", 'নতুন অ্যাকাউন্ট খোলো': 'Create a new account',
@@ -419,7 +465,9 @@ const I18N_PATTERNS = [
   [/^(.+) · (\d+) ফলোয়ার$/, '$1 · $2 followers'],
   [/^(.+) · (\d+) সদস্য$/, (m, c, n) => i18nVal(c) + ' · ' + n + ' members'],
   [/^· (\d+) সদস্য$/, '· $1 members'],
-  [/^📍 (.+) · বন্ধু$/, '📍 $1 · Friend'], [/^📍 (.+) · তুমি$/, '📍 $1 · You']
+  [/^📍 (.+) · বন্ধু$/, '📍 $1 · Friend'], [/^📍 (.+) · তুমি$/, '📍 $1 · You'],
+  [/^দেখা হয়েছে · (.+)$/, 'Seen · $1'],
+  [/^(.+) লিখছে\.\.\.$/, '$1 is typing...']
 ];
 /* Distinctive fragments for strings glued inside a larger text node. Longest first. */
 const I18N_FRAGS = [
@@ -575,6 +623,8 @@ const I = {
   paw:'<svg viewBox="0 0 24 24"><ellipse cx="12" cy="15.8" rx="4.1" ry="3.3" fill="currentColor" stroke="none"/><ellipse cx="4.9" cy="11" rx="1.8" ry="2.2" fill="currentColor" stroke="none"/><ellipse cx="8.6" cy="7.6" rx="1.8" ry="2.3" fill="currentColor" stroke="none"/><ellipse cx="13" cy="7.2" rx="1.8" ry="2.3" fill="currentColor" stroke="none"/><ellipse cx="17.2" cy="9.6" rx="1.8" ry="2.2" fill="currentColor" stroke="none"/></svg>',
   type:'<svg viewBox="0 0 24 24"><polyline points="4 7 4 4 20 4 20 7"/><path d="M9 20h6M12 4v16"/></svg>',
   wifi:'<svg viewBox="0 0 24 24"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><path d="M12 20h.01"/></svg>',
+  clip:'<svg viewBox="0 0 24 24"><path d="M21.4 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.2-9.19a4 4 0 1 1 5.65 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>',
+  mute:'<svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M23 9l-6 6M17 9l6 6"/></svg>',
   help:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>'
 };
 
@@ -601,6 +651,7 @@ function renderShell(){
 function go(v, arg){
   curView = v; activeChat = null;
   if (chatChannel) { sb.removeChannel(chatChannel); chatChannel = null; }
+  if (typingChannel) { sb.removeChannel(typingChannel); typingChannel = null; }
   renderShell();
   window.scrollTo(0, 0);
   ({ feed: renderFeed, friends: renderFriends, trending: renderTrending, chat: renderChatList,
@@ -1134,6 +1185,19 @@ function subscribeNotifs(){
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: 'user_id=eq.' + me.id }, () => { unreadNotifs++; renderShell(); })
     .subscribe();
 }
+/* Online presence: one shared channel; the chat list reads onlineIds for its green dots. */
+function subscribePresence(){
+  if (presenceChannel) sb.removeChannel(presenceChannel);
+  presenceChannel = sb.channel('adda-online', { config: { presence: { key: me.id } } });
+  presenceChannel.on('presence', { event: 'sync' }, () => {
+    const next = new Set(Object.keys(presenceChannel.presenceState()));
+    const changed = next.size !== onlineIds.size || [...next].some(id => !onlineIds.has(id));
+    onlineIds = next;
+    if (changed && curView === 'chat' && !activeChat) renderChatList();
+  }).subscribe(async status => {
+    if (status === 'SUBSCRIBED') { try { await presenceChannel.track({ user_id: me.id }); } catch (e) {} }
+  });
+}
 async function boot(){
   const { data: { session } } = await sb.auth.getSession();
   if (!session) { renderAuth(); return; }
@@ -1161,6 +1225,7 @@ async function boot(){
   });
   await refreshNotifBadge();
   subscribeNotifs();
+  subscribePresence();
   startBreakReminder();
   const qu = new URLSearchParams(location.search).get('u');
   if (qu) {
@@ -1957,11 +2022,13 @@ async function leaveGroup(gid){
 
 /* ---------- CHAT ---------- */
 async function renderChatList(){
-  curView = 'chat'; renderShell();
+  curView = 'chat'; activeChat = null; renderShell();
+  if (typingChannel) { sb.removeChannel(typingChannel); typingChannel = null; }
   view().innerHTML = `<div class="view"><div style="padding:14px 16px;font-size:18px;font-weight:800">চ্যাট</div><div id="chatList"><div class="empty">লোড হচ্ছে...</div></div></div>`;
-  const { data: myConvs } = await sb.from('conversation_members').select('conversation_id').eq('user_id', me.id);
+  const { data: myConvs } = await sb.from('conversation_members').select('*').eq('user_id', me.id);
   const ids = (myConvs || []).map(r => r.conversation_id);
   if (!ids.length) { $('#chatList').innerHTML = '<div class="empty">এখনো কোনো চ্যাট নেই।<br>বন্ধুর প্রোফাইল থেকে "মেসেজ" চাপ দিলেই চ্যাট শুরু হবে।</div>'; return; }
+  const myRowMap = {}; (myConvs || []).forEach(r => myRowMap[r.conversation_id] = r);
   const [{ data: convs }, { data: members }, { data: msgs }] = await Promise.all([
     sb.from('conversations').select('*').in('id', ids),
     sb.from('conversation_members').select('*').in('conversation_id', ids),
@@ -1975,13 +2042,14 @@ async function renderChatList(){
   const rows = (convs || []).map(c => {
     const others = (members || []).filter(m => m.conversation_id === c.id && m.user_id !== me.id);
     const lm = lastMsg[c.id];
-    let title, avHtml;
+    const myRow = myRowMap[c.id] || {};
+    let title, avHtml, otherId = null;
     if (c.is_group && c.group_id && groupMap[c.group_id]) { const g = groupMap[c.group_id]; title = g.name + ' (গ্রুপ)'; avHtml = `<span class="av" style="background:#4F46E5;width:47px;height:47px;font-size:17px">${ic('users', 20)}</span>`; }
-    else if (others.length) { const p = prof(others[0].user_id); title = p.name; avHtml = avatar(p, 47, 17); }
+    else if (others.length) { const p = prof(others[0].user_id); otherId = others[0].user_id; title = others[0].nickname || p.name; avHtml = avatar(p, 47, 17); }
     else { title = 'চ্যাট'; avHtml = avatar(null, 47, 17); }
-    return { c, title, avHtml, lm };
-  }).sort((a, b) => new Date(b.lm?.created_at || b.c.created_at) - new Date(a.lm?.created_at || a.c.created_at));
-  $('#chatList').innerHTML = rows.map(({ c, title, avHtml, lm }) => `<button class="chatrow" onclick="openChat('${c.id}')"><span class="avw">${avHtml}</span><span style="flex:1;min-width:0"><b>${esc(title)}</b><small>${lm ? esc(lm.body) : 'চ্যাট শুরু করো'}</small></span><small style="color:var(--faint);font-size:11px">${lm ? timeAgo(lm.created_at) : ''}</small></button>`).join('');
+    return { c, title, avHtml, lm, myRow, otherId };
+  }).sort((a, b) => ((b.myRow.pinned ? 1 : 0) - (a.myRow.pinned ? 1 : 0)) || (new Date(b.lm?.created_at || b.c.created_at) - new Date(a.lm?.created_at || a.c.created_at)));
+  $('#chatList').innerHTML = rows.map(({ c, title, avHtml, lm, myRow, otherId }) => `<button class="chatrow" onclick="openChat('${c.id}')"><span class="avw">${avHtml}${otherId && onlineIds.has(otherId) ? '<span class="ondot"></span>' : ''}</span><span style="flex:1;min-width:0"><b>${myRow.pinned ? ic('pin', 12) + ' ' : ''}${esc(title)}</b><small>${lm ? esc(snippetOf(lm.body)) : 'চ্যাট শুরু করো'}</small></span>${myRow.muted ? `<span style="color:var(--faint);display:inline-flex">${ic('mute', 14)}</span>` : ''}<small style="color:var(--faint);font-size:11px">${lm ? timeAgo(lm.created_at) : ''}</small></button>`).join('');
 }
 async function findOrCreateDM(uid){
   const { data: mine } = await sb.from('conversation_members').select('conversation_id').eq('user_id', me.id);
@@ -2015,42 +2083,294 @@ async function openGroupChat(gid){
 }
 async function openChat(convId){
   curView = 'chat'; activeChat = convId; renderShell();
+  replyTarget = null;
   const { data: conv } = await sb.from('conversations').select('*').eq('id', convId).single();
-  const { data: members } = await sb.from('conversation_members').select('user_id').eq('conversation_id', convId);
+  const { data: members } = await sb.from('conversation_members').select('*').eq('conversation_id', convId);
   await cacheProfiles((members || []).map(m => m.user_id));
+  const myRow = (members || []).find(m => m.user_id === me.id) || null;
+  const otherRow = (members || []).find(m => m.user_id !== me.id) || null;
+  chatMeta = { conv, members: members || [], myRow, otherRow };
   let title = 'চ্যাট', headAv = '';
   if (conv && conv.is_group && conv.group_id) {
     const { data: g } = await sb.from('groups').select('name').eq('id', conv.group_id).single();
     title = (g ? g.name : 'গ্রুপ') + ' · গ্রুপ চ্যাট'; headAv = `<span class="av" style="background:#4F46E5;width:38px;height:38px;font-size:15px">${ic('users', 18)}</span>`;
-  } else {
-    const other = (members || []).find(m => m.user_id !== me.id);
-    if (other) { const p = prof(other.user_id); title = p.name; headAv = avatar(p, 38, 15); }
+  } else if (otherRow) {
+    const p = prof(otherRow.user_id); title = otherRow.nickname || p.name; headAv = avatar(p, 38, 15);
   }
-  view().innerHTML = `<div class="view">
-    <div style="display:flex;gap:10px;align-items:center;padding:12px 16px;background:var(--card);border-bottom:1px solid var(--line2);position:sticky;top:57px;z-index:5">
-      <button class="icb" style="width:34px;height:34px" onclick="renderChatList()">←</button>${headAv}<b style="font-size:15.5px">${esc(title)}</b></div>
-    <div id="msgList" style="padding:10px 0 4px"><div class="empty">লোড হচ্ছে...</div></div>
-    <div class="chatbar"><button class="icb" onclick="stickerSheet('${convId}')" aria-label="স্টিকার">${I.smile}</button><label class="icb" style="cursor:pointer" aria-label="ভয়েস মেসেজ">${I.mic}<input type="file" accept="audio/*" style="display:none" onchange="sendVoiceMsg('${convId}',this)"></label><input id="msgInput" placeholder="মেসেজ লেখো..." onkeydown="if(event.key==='Enter')sendMsg('${convId}')"><button class="send" onclick="sendMsg('${convId}')">${ic('send', 18)}</button></div></div>`;
+  const th = conv ? chatTheme(conv.theme) : null;
+  view().innerHTML = `<div class="view" ${th ? `style="--cgrad:linear-gradient(135deg,${th[1]},${th[2]})"` : ''}>
+    <div style="display:flex;gap:10px;align-items:center;padding:12px 16px;background:${th ? `linear-gradient(90deg,${th[1]}30,${th[2]}30)` : 'var(--card)'};border-bottom:1px solid var(--line2);position:sticky;top:57px;z-index:5">
+      <button class="icb" style="width:34px;height:34px" onclick="renderChatList()">←</button>${headAv}<b style="font-size:15.5px;flex:1;min-width:0">${esc(title)}</b><button class="icb" style="width:34px;height:34px" onclick="chatInfoSheet()" aria-label="চ্যাটের তথ্য">${ic('dots', 18)}</button></div>
+    <div id="typingLine" style="display:none;padding:5px 16px;font-size:12px;color:var(--mut);background:var(--card);border-bottom:1px solid var(--line2)"></div>
+    <div ${th ? `style="background:linear-gradient(165deg,${th[1]}24,${th[2]}24)"` : ''}><div id="msgList" style="padding:10px 0 4px"><div class="empty">লোড হচ্ছে...</div></div></div>
+    <div id="replyBar"></div>
+    <div class="chatbar"><button class="icb" onclick="stickerSheet('${convId}')" aria-label="স্টিকার">${I.smile}</button><label class="icb" style="cursor:pointer" aria-label="ফাইল পাঠাও">${ic('clip')}<input type="file" style="display:none" onchange="sendFileMsg('${convId}',this)"></label><label class="icb" style="cursor:pointer" aria-label="ভয়েস মেসেজ">${I.mic}<input type="file" accept="audio/*" style="display:none" onchange="sendVoiceMsg('${convId}',this)"></label><input id="msgInput" placeholder="মেসেজ লেখো..." oninput="onMsgInput()" onkeydown="if(event.key==='Enter')sendMsg('${convId}')"><button class="send" onclick="sendMsg('${convId}')">${ic('send', 18)}</button></div></div>`;
+  if (!me.hide_reads) {
+    const nowIso = new Date().toISOString();
+    sb.from('conversation_members').update({ last_read_at: nowIso }).eq('conversation_id', convId).eq('user_id', me.id).then(() => {});
+    if (myRow) myRow.last_read_at = nowIso;
+  }
   const { data: msgs } = await sb.from('messages').select('*').eq('conversation_id', convId).order('created_at').limit(200);
-  $('#msgList').innerHTML = (msgs || []).length ? msgs.map(msgHtml).join('') : '<div class="empty">প্রথম মেসেজটা পাঠাও 👋</div>';
-  window.scrollTo(0, document.body.scrollHeight);
+  chatMsgs = msgs || [];
+  chatMsgMap = {}; chatMsgs.forEach(m => chatMsgMap[m.id] = m);
+  chatReactions = {};
+  await loadReactions(chatMsgs.map(m => m.id));
+  renderMsgList();
   if (chatChannel) sb.removeChannel(chatChannel);
   chatChannel = sb.channel('chat-' + convId)
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: 'conversation_id=eq.' + convId }, payload => {
       if (activeChat !== convId) return;
+      const m = payload.new;
+      if (!m || chatMsgMap[m.id]) return;
+      chatMsgs.push(m); chatMsgMap[m.id] = m;
       const box = $('#msgList'); if (!box) return;
-      if (box.querySelector('.empty')) box.innerHTML = '';
-      box.insertAdjacentHTML('beforeend', msgHtml(payload.new));
+      if (box.querySelector('.empty')) { renderMsgList(); return; }
+      const seen = box.querySelector('.seenlbl'); if (seen) seen.remove();
+      box.insertAdjacentHTML('beforeend', msgHtml(m));
       window.scrollTo(0, document.body.scrollHeight);
+    })
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages', filter: 'conversation_id=eq.' + convId }, payload => {
+      if (activeChat !== convId) return;
+      const m = payload.new; if (!m) return;
+      const i = chatMsgs.findIndex(x => x.id === m.id);
+      if (i >= 0) { chatMsgs[i] = m; chatMsgMap[m.id] = m; renderMsgList(false); }
+    })
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages', filter: 'conversation_id=eq.' + convId }, payload => {
+      if (activeChat !== convId) return;
+      const id = payload.old && payload.old.id; if (!id) return;
+      chatMsgs = chatMsgs.filter(x => x.id !== id); delete chatMsgMap[id];
+      renderMsgList(false);
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'message_reactions' }, async payload => {
+      if (activeChat !== convId) return;
+      const mid = (payload.new && payload.new.message_id) || (payload.old && payload.old.message_id);
+      if (!mid || !chatMsgMap[mid]) return;
+      await loadReactions([mid]);
+      renderMsgList(false);
+    }).subscribe();
+  if (typingChannel) sb.removeChannel(typingChannel);
+  typingChannel = sb.channel('typing-' + convId, { config: { broadcast: { self: false } } })
+    .on('broadcast', { event: 'typing' }, ({ payload }) => {
+      if (!payload || payload.user === me.id || activeChat !== convId) return;
+      showTyping(payload.name || 'বন্ধু');
     }).subscribe();
   const inp = $('#msgInput'); if (inp) inp.focus();
 }
+function snippetOf(body){
+  if (!body) return '';
+  if (body.startsWith('🎧AUDIO:')) return '🎧 ' + tx('ভয়েস মেসেজ', 'Voice message');
+  if (body.startsWith('📎FILE:')) { const r = body.slice(7); const i = r.indexOf('|'); return '📎 ' + (i >= 0 ? r.slice(i + 1) : tx('ফাইল', 'File')); }
+  const chars = [...body];
+  return chars.length > 60 ? chars.slice(0, 60).join('') + '…' : body;
+}
+function quoteHtml(m){
+  if (!m.reply_to) return '';
+  const t = chatMsgMap[m.reply_to];
+  if (!t) return '';
+  return `<span class="qbox"><b>${esc(prof(t.sender_id).name)}</b>${esc(snippetOf(t.body))}</span>`;
+}
+function rxnHtml(m){
+  const r = chatReactions[m.id]; if (!r) return '';
+  const chips = Object.entries(r).filter(([, v]) => v.count > 0)
+    .map(([e, v]) => `<button class="rxn ${v.mine ? 'mine' : ''}" onclick="event.stopPropagation();toggleReaction('${m.id}','${e}')">${e} ${bn(v.count)}</button>`).join('');
+  return chips ? `<span class="rxns">${chips}</span>` : '';
+}
+function seenHtml(){
+  if (!chatMsgs.length || !chatMeta.members.length) return '';
+  const mine = [...chatMsgs].reverse().find(m => m.sender_id === me.id);
+  if (!mine) return '';
+  let seenAt = null;
+  for (const o of chatMeta.members) {
+    if (o.user_id === me.id || !o.last_read_at) continue;
+    const op = profilesCache[o.user_id];
+    if (op && op.hide_reads) continue;
+    if (new Date(o.last_read_at) >= new Date(mine.created_at)) seenAt = o.last_read_at;
+  }
+  return seenAt ? `<div class="seenlbl">দেখা হয়েছে · ${timeAgo(seenAt)}</div>` : '';
+}
+function renderMsgList(scroll = true){
+  const box = $('#msgList'); if (!box) return;
+  let list = chatMsgs;
+  if (chatMeta.conv && chatMeta.conv.disappear) list = list.filter(m => Date.now() - new Date(m.created_at).getTime() < 864e5);
+  let html = '';
+  if (chatMeta.conv && chatMeta.conv.disappear) html += '<div class="empty" style="padding:6px 16px;font-size:12px">ডিসঅ্যাপিয়ারিং চালু — ২৪ ঘণ্টার পুরনো মেসেজ দেখা যায় না</div>';
+  html += list.length ? list.map(msgHtml).join('') : '<div class="empty">প্রথম মেসেজটা পাঠাও 👋</div>';
+  html += seenHtml();
+  box.innerHTML = html;
+  if (scroll) window.scrollTo(0, document.body.scrollHeight);
+}
 function msgHtml(m){
   const mine = m.sender_id === me.id;
-  if (m.body && m.body.startsWith('🎧AUDIO:')) return `<div class="msg ${mine ? 'me' : ''}"><audio controls src="${esc(m.body.slice(8))}" style="max-width:210px;height:36px"></audio><small>${timeAgo(m.created_at)}</small></div>`;
+  const edited = m.edited_at ? tx(' · সম্পাদিত', ' · edited') : '';
+  const tail = `<small>${timeAgo(m.created_at)}${edited}</small>`;
+  const q = quoteHtml(m), rx = rxnHtml(m);
+  if (m.body && m.body.startsWith('🎧AUDIO:')) return `<div class="msg ${mine ? 'me' : ''}" onclick="msgTap(event,'${m.id}')">${q}<audio controls src="${esc(m.body.slice(8))}" style="max-width:210px;height:36px"></audio>${rx}${tail}</div>`;
+  if (m.body && m.body.startsWith('📎FILE:')) {
+    const rest = m.body.slice(7); const bar = rest.indexOf('|');
+    const url = bar >= 0 ? rest.slice(0, bar) : rest; const name = bar >= 0 ? rest.slice(bar + 1) : tx('ফাইল', 'File');
+    return `<div class="msg ${mine ? 'me' : ''}" onclick="msgTap(event,'${m.id}')">${q}<a href="${esc(url)}" target="_blank" rel="noopener" style="display:flex;gap:9px;align-items:center;color:inherit;text-decoration:none">${ic('file', 24)}<span style="min-width:0"><b style="display:block;font-size:13px;word-break:break-all">${esc(name)}</b><span style="font-size:11px;opacity:.75">${tx('ডাউনলোড করতে চাপ দাও', 'Tap to download')}</span></span></a>${rx}${tail}</div>`;
+  }
   const sticker = m.body && [...m.body].length <= 3 && /\p{Extended_Pictographic}/u.test(m.body);
-  if (sticker) return `<div class="msg ${mine ? 'me' : ''}" style="background:none;box-shadow:none;font-size:52px;padding:2px">${esc(m.body)}<small style="font-size:10px">${timeAgo(m.created_at)}</small></div>`;
-  return `<div class="msg ${mine ? 'me' : ''}">${esc(m.body)}<small>${timeAgo(m.created_at)}</small></div>`;
+  if (sticker) return `<div class="msg ${mine ? 'me' : ''}" onclick="msgTap(event,'${m.id}')" style="background:none;box-shadow:none;font-size:52px;padding:2px">${q}${esc(m.body)}${rx}<small style="font-size:10px">${timeAgo(m.created_at)}${edited}</small></div>`;
+  return `<div class="msg ${mine ? 'me' : ''}" onclick="msgTap(event,'${m.id}')">${q}${esc(m.body)}${rx}${tail}</div>`;
+}
+/* ---------- message actions: sheet / reply / edit / delete / reactions ---------- */
+function msgTap(ev, mid){
+  if (ev.target.closest('audio, a, button, input, textarea')) return;
+  msgActions(mid);
+}
+function msgActions(mid){
+  const m = chatMsgMap[mid]; if (!m) return;
+  const mine = m.sender_id === me.id;
+  const isText = m.body && !m.body.startsWith('🎧AUDIO:') && !m.body.startsWith('📎FILE:');
+  const RX = ['❤️', '👍', '😂', '😮', '😢', '🙏'];
+  sheet(`<h3>${ic('msg', 18)} মেসেজ অপশন</h3>
+    <div style="display:flex;justify-content:space-around;padding:4px 0 12px">${RX.map(e => `<button style="font-size:27px;background:none;border:none;cursor:pointer;padding:4px" onclick="closeSheet();toggleReaction('${mid}','${e}')">${e}</button>`).join('')}</div>
+    <button class="menu-item" onclick="setReply('${mid}')">${ic('share')} রিপ্লাই</button>
+    ${isText ? `<button class="menu-item" onclick="copyMsg('${mid}')">${ic('file')} কপি</button>` : ''}
+    ${mine && isText ? `<button class="menu-item" onclick="editMsgSheet('${mid}')">${ic('edit')} সম্পাদনা</button>` : ''}
+    ${mine ? `<button class="menu-item" style="color:var(--danger)" onclick="deleteMsg('${mid}')">${ic('trash')} সবার জন্য মোছো</button>` : ''}`);
+}
+async function toggleReaction(mid, emoji){
+  const cur = (chatReactions[mid] || {})[emoji];
+  if (cur && cur.mine) await sb.from('message_reactions').delete().eq('message_id', mid).eq('user_id', me.id);
+  else await sb.from('message_reactions').upsert({ message_id: mid, user_id: me.id, emoji }, { onConflict: 'message_id,user_id' });
+  await loadReactions([mid]);
+  renderMsgList(false);
+}
+async function loadReactions(ids){
+  if (!ids || !ids.length) return;
+  const { data } = await sb.from('message_reactions').select('*').in('message_id', ids);
+  const grouped = {};
+  (data || []).forEach(r => {
+    if (!grouped[r.message_id]) grouped[r.message_id] = {};
+    const g = grouped[r.message_id];
+    if (!g[r.emoji]) g[r.emoji] = { count: 0, mine: false };
+    g[r.emoji].count++; if (r.user_id === me.id) g[r.emoji].mine = true;
+  });
+  ids.forEach(id => { chatReactions[id] = grouped[id] || {}; });
+}
+function setReply(mid){
+  const m = chatMsgMap[mid]; if (!m) return;
+  replyTarget = m; closeSheet(); renderReplyBar();
+  const inp = $('#msgInput'); if (inp) inp.focus();
+}
+function clearReply(){ replyTarget = null; renderReplyBar(); }
+function renderReplyBar(){
+  const bar = $('#replyBar'); if (!bar) return;
+  if (!replyTarget) { bar.innerHTML = ''; return; }
+  bar.innerHTML = `<div style="display:flex;gap:8px;align-items:center;padding:8px 14px;background:var(--line2);border-top:1px solid var(--line);font-size:12.5px"><span style="flex:1;min-width:0;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><b style="color:var(--ink2)">${esc(prof(replyTarget.sender_id).name)}</b> · ${esc(snippetOf(replyTarget.body))}</span><button class="icb" style="width:28px;height:28px;flex:none" onclick="clearReply()" aria-label="বন্ধ করো">${ic('x', 13)}</button></div>`;
+}
+async function copyMsg(mid){
+  const m = chatMsgMap[mid]; if (!m) return;
+  try { await navigator.clipboard.writeText(m.body); } catch (e) {}
+  closeSheet(); toast('কপি হয়েছে');
+}
+function editMsgSheet(mid){
+  const m = chatMsgMap[mid]; if (!m) return;
+  sheet(`<h3>${ic('edit', 18)} মেসেজ সম্পাদনা</h3>
+    <textarea class="field" id="editMsgBody" rows="3">${esc(m.body)}</textarea>
+    <button class="btn block" onclick="saveEditMsg('${mid}')">সেভ করো</button>`);
+}
+async function saveEditMsg(mid){
+  const body = $('#editMsgBody').value.trim();
+  if (!body) { toast('খালি মেসেজ হবে না'); return; }
+  const nowIso = new Date().toISOString();
+  const { error } = await sb.from('messages').update({ body, edited_at: nowIso }).eq('id', mid);
+  if (error) { toast('বদলানো যায়নি'); return; }
+  const m = chatMsgMap[mid];
+  if (m) { m.body = body; m.edited_at = nowIso; }
+  closeSheet(); renderMsgList(false); toast('সম্পাদনা হয়েছে ✓');
+}
+async function deleteMsg(mid){
+  const { error } = await sb.from('messages').delete().eq('id', mid);
+  if (error) { toast('মোছা যায়নি'); return; }
+  chatMsgs = chatMsgs.filter(x => x.id !== mid);
+  delete chatMsgMap[mid];
+  closeSheet(); renderMsgList(false); toast('মেসেজ মোছা হয়েছে');
+}
+/* ---------- chat info sheet: nickname / theme / pin / mute / disappear ---------- */
+function chatInfoSheet(){
+  const { conv, myRow, otherRow } = chatMeta;
+  if (!conv) return;
+  const nickRow = conv.is_group ? myRow : otherRow;
+  const cur = conv.theme || '';
+  sheet(`<h3>${ic('info', 18)} চ্যাটের তথ্য</h3>
+    <button class="menu-item" onclick="setNicknameSheet()">${ic('edit')} ডাকনাম দাও${nickRow && nickRow.nickname ? `<span style="margin-left:auto" class="pill">${esc(nickRow.nickname)}</span>` : ''}</button>
+    <div class="seclabel" style="margin:12px 0 4px">চ্যাটের থিম</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:4px 0 8px">
+      <button onclick="setChatTheme('')" style="background:none;border:none;cursor:pointer;text-align:center;padding:0"><span style="display:block;width:40px;height:40px;margin:0 auto;border-radius:50%;background:var(--line2);border:2px ${cur === '' ? 'solid var(--acc)' : 'solid var(--line)'}"></span><small style="font-size:11px;color:var(--mut)">ডিফল্ট</small></button>
+      ${CHAT_THEMES.map(([k, c1, c2, label]) => `<button onclick="setChatTheme('${k}')" style="background:none;border:none;cursor:pointer;text-align:center;padding:0"><span style="display:block;width:40px;height:40px;margin:0 auto;border-radius:50%;background:linear-gradient(135deg,${c1},${c2});border:2px ${cur === k ? 'solid var(--acc)' : 'solid transparent'}"></span><small style="font-size:11px;color:var(--mut)">${label}</small></button>`).join('')}
+    </div>
+    <button class="menu-item" onclick="toggleChatPin()">${ic('pin')} ${myRow && myRow.pinned ? 'পিন সরাও' : 'পিন করো'}</button>
+    <button class="menu-item" onclick="toggleChatMute()">${ic('mute')} ${myRow && myRow.muted ? 'আনমিউট' : 'মিউট'}</button>
+    <button class="menu-item" onclick="toggleDisappear()">${ic('clock')} ডিসঅ্যাপিয়ারিং মেসেজ<span style="margin-left:auto" class="pill">${conv.disappear ? 'চালু' : 'বন্ধ'}</span></button>`);
+}
+function setNicknameSheet(){
+  const { conv, myRow, otherRow } = chatMeta;
+  const row = conv.is_group ? myRow : otherRow;
+  if (!row) { toast('ডাকনাম দেওয়া যাবে না'); return; }
+  sheet(`<h3>${ic('edit', 18)} ডাকনাম দাও</h3>
+    <input class="field" id="nickInput" placeholder="ডাকনাম" value="${esc(row.nickname || '')}">
+    <button class="btn block" onclick="saveNickname()">সেভ করো</button>`);
+}
+async function saveNickname(){
+  const { conv, myRow, otherRow } = chatMeta;
+  const row = conv.is_group ? myRow : otherRow;
+  if (!row) return;
+  const nick = $('#nickInput').value.trim();
+  const { error } = await sb.from('conversation_members').update({ nickname: nick }).eq('conversation_id', conv.id).eq('user_id', row.user_id);
+  if (error) { toast('ডাকনাম দেওয়া যায়নি'); return; }
+  row.nickname = nick;
+  closeSheet(); toast('ডাকনাম দেওয়া হয়েছে ✓');
+  openChat(conv.id);
+}
+async function setChatTheme(key){
+  const { conv } = chatMeta; if (!conv) return;
+  const { error } = await sb.from('conversations').update({ theme: key }).eq('id', conv.id);
+  if (error) { toast('থিম বদলানো যায়নি'); return; }
+  conv.theme = key;
+  closeSheet(); toast('থিম বদলানো হয়েছে');
+  openChat(conv.id);
+}
+async function toggleChatPin(){
+  const { conv, myRow } = chatMeta; if (!myRow) return;
+  const next = !myRow.pinned;
+  const { error } = await sb.from('conversation_members').update({ pinned: next }).eq('conversation_id', conv.id).eq('user_id', me.id);
+  if (error) { toast('করা যায়নি'); return; }
+  myRow.pinned = next;
+  closeSheet(); toast(next ? 'পিন করা হয়েছে' : 'পিন সরানো হয়েছে');
+}
+async function toggleChatMute(){
+  const { conv, myRow } = chatMeta; if (!myRow) return;
+  const next = !myRow.muted;
+  const { error } = await sb.from('conversation_members').update({ muted: next }).eq('conversation_id', conv.id).eq('user_id', me.id);
+  if (error) { toast('করা যায়নি'); return; }
+  myRow.muted = next;
+  closeSheet(); toast(next ? 'মিউট করা হয়েছে' : 'আনমিউট করা হয়েছে');
+}
+async function toggleDisappear(){
+  const { conv } = chatMeta; if (!conv) return;
+  const next = !conv.disappear;
+  const { error } = await sb.from('conversations').update({ disappear: next }).eq('id', conv.id);
+  if (error) { toast('করা যায়নি'); return; }
+  conv.disappear = next;
+  closeSheet(); toast(next ? 'ডিসঅ্যাপিয়ারিং চালু হয়েছে' : 'ডিসঅ্যাপিয়ারিং বন্ধ হয়েছে');
+  openChat(conv.id);
+}
+/* ---------- typing ---------- */
+function onMsgInput(){
+  const now = Date.now();
+  if (!typingChannel || now - lastTypingAt < 2500) return;
+  lastTypingAt = now;
+  try { typingChannel.send({ type: 'broadcast', event: 'typing', payload: { user: me.id, name: me.name } }); } catch (e) {}
+}
+function showTyping(name){
+  const el = $('#typingLine'); if (!el) return;
+  el.textContent = name + ' লিখছে...';
+  el.style.display = 'block';
+  if (typingHideTimer) clearTimeout(typingHideTimer);
+  typingHideTimer = setTimeout(() => { const e2 = $('#typingLine'); if (e2) e2.style.display = 'none'; }, 3000);
 }
 function stickerSheet(convId){
   const stickers = ['😂','❤️','😍','👍','🔥','🥰','😎','🤣','😭','🙏','💯','🎉','😴','🤔','👏','🌹'];
@@ -2059,6 +2379,25 @@ function stickerSheet(convId){
 async function sendSticker(convId, s){
   closeSheet();
   const { error } = await sb.from('messages').insert({ conversation_id: convId, sender_id: me.id, body: s });
+  if (error) toast('যায়নি');
+}
+async function uploadFile(file){
+  if (!file) return '';
+  const ext = ((file.name || '').split('.').pop() || 'bin').replace(/[^a-zA-Z0-9]/g, '').slice(0, 8) || 'bin';
+  const path = me.id + '/' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.' + ext;
+  const { error } = await sb.storage.from('media').upload(path, file, { contentType: file.type || 'application/octet-stream' });
+  if (error) { toast('ফাইল আপলোড হয়নি'); return ''; }
+  return sb.storage.from('media').getPublicUrl(path).data.publicUrl;
+}
+async function sendFileMsg(convId, input){
+  const f = input.files[0]; input.value = '';
+  if (!f) return;
+  if (f.size > 10 * 1024 * 1024) { toast('ফাইল ১০MB-এর বেশি হতে পারবে না'); return; }
+  toast('ফাইল আপলোড হচ্ছে...');
+  const url = await uploadFile(f);
+  if (!url) { toast('আপলোড হয়নি'); return; }
+  const name = f.name.replace(/\|/g, ' ');
+  const { error } = await sb.from('messages').insert({ conversation_id: convId, sender_id: me.id, body: '📎FILE:' + url + '|' + name });
   if (error) toast('যায়নি');
 }
 async function sendVoiceMsg(convId, input){
@@ -2072,10 +2411,13 @@ async function sendVoiceMsg(convId, input){
 async function sendMsg(convId){
   const inp = $('#msgInput'); const body = inp.value.trim(); if (!body) return;
   inp.value = '';
-  const { error } = await sb.from('messages').insert({ conversation_id: convId, sender_id: me.id, body });
+  const row = { conversation_id: convId, sender_id: me.id, body };
+  if (replyTarget) row.reply_to = replyTarget.id;
+  const { error } = await sb.from('messages').insert(row);
   if (error) { toast('মেসেজ যায়নি'); inp.value = body; return; }
-  const { data: members } = await sb.from('conversation_members').select('user_id').eq('conversation_id', convId);
-  (members || []).filter(m => m.user_id !== me.id).forEach(m => notify(m.user_id, 'message', null, convId));
+  clearReply();
+  const { data: members } = await sb.from('conversation_members').select('*').eq('conversation_id', convId);
+  (members || []).filter(m => m.user_id !== me.id && !m.muted).forEach(m => notify(m.user_id, 'message', null, convId));
 }
 
 /* ---------- SETTINGS ---------- */
@@ -2084,6 +2426,14 @@ function toggleLocal(key, label){
   localStorage.setItem(key, on ? '0' : '1');
   if (key === 'adda-big') document.documentElement.classList.toggle('big', !on);
   toast(label + (!on ? ' চালু হয়েছে' : ' বন্ধ হয়েছে'));
+  renderSettings();
+}
+async function toggleHideReads(){
+  const next = !me.hide_reads;
+  const { error } = await sb.from('profiles').update({ hide_reads: next }).eq('id', me.id);
+  if (error) { toast('বদলানো যায়নি'); return; }
+  me.hide_reads = next; profilesCache[me.id] = me;
+  toast(next ? 'রিড রিসিপ্ট লুকানো হয়েছে' : 'রিড রিসিপ্ট দেখানো হবে');
   renderSettings();
 }
 async function renderAdmin(){
@@ -2202,6 +2552,7 @@ async function renderSettings(){
       <button class="menu-item" onclick="changePasswordSheet()">${ic('key')} পাসওয়ার্ড বদলাও</button>
       <button class="menu-item" onclick="defAudSheet()">${ic('target')} নতুন পোস্ট কে দেখবে (ডিফল্ট) <span style="margin-left:auto" class="pill">${{ public: 'সবাই', friends: 'বন্ধুরা', close: 'কাছের বন্ধুরা', supporters: 'ফলোয়াররা' }[localStorage.getItem('adda-def-aud') || 'public']}</span></button>
       <button class="menu-item" onclick="renderBlocks()">${ic('ban')} ব্লক করা মানুষ</button>
+      <button class="menu-item" onclick="toggleHideReads()">${ic('eyeOff')} রিড রিসিপ্ট লুকাও<span style="margin-left:auto" class="pill">${me.hide_reads ? 'চালু' : 'বন্ধ'}</span></button>
       <button class="menu-item" onclick="aboutSheet()">${ic('info')} আড্ডাBook সম্পর্কে</button>
       <button class="menu-item" onclick="logoutEverywhere()">${ic('power')} সব ডিভাইস থেকে লগ আউট</button>
     </div>

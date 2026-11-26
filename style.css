@@ -87,7 +87,7 @@ html.dark .seg{background:#1B2740}
 .onl{position:absolute;bottom:1px;right:1px;width:11px;height:11px;border-radius:50%;background:var(--ok);border:2px solid var(--card)}
 .unread{margin-left:auto;background:var(--danger);color:#fff;font-size:10.5px;font-weight:700;border-radius:99px;min-width:19px;height:19px;display:flex;align-items:center;justify-content:center;padding:0 5px}
 .msg{max-width:76%;padding:10px 14px;border-radius:19px;font-size:14px;line-height:1.55;margin:5px 16px;color:var(--ink2);background:var(--card);border-bottom-left-radius:6px;box-shadow:var(--shadow);width:fit-content}
-.msg.me{background:var(--grad);color:#fff;border-bottom-right-radius:6px;border-bottom-left-radius:19px;margin-left:auto}
+.msg.me{background:var(--cgrad,var(--grad));color:#fff;border-bottom-right-radius:6px;border-bottom-left-radius:19px;margin-left:auto}
 .msg small{display:block;font-size:10px;opacity:.65;margin-top:3px;text-align:right}
 .chatbar{position:sticky;bottom:94px;display:flex;gap:9px;padding:10px 14px;background:var(--card);align-items:center;border-top:1px solid var(--line2)}
 .chatbar input{flex:1;background:var(--field);border:1px solid var(--line);border-radius:999px;padding:11px 16px;outline:none;transition:border-color .18s ease,box-shadow .18s ease}
@@ -178,3 +178,14 @@ html.big .menu-item{font-size:16px;padding:14px 2px}
 html.big input.field,html.big textarea.field,html.big select.field{font-size:16px;padding:13px 14px}
 video.pimg{background:#000}
 @media (prefers-reduced-motion:reduce){*{animation-duration:.01s!important;transition-duration:.01s!important}}
+
+/* chat pack: online dot, seen label, quote block, reaction chips */
+.ondot{position:absolute;right:0;bottom:0;width:12px;height:12px;border-radius:50%;background:#22C55E;border:2px solid var(--card)}
+.seenlbl{text-align:right;font-size:11px;color:var(--faint);padding:3px 18px 0}
+.msg .qbox{display:block;background:rgba(127,127,127,.16);border-radius:10px;padding:6px 9px;margin-bottom:6px;font-size:12px;line-height:1.45}
+.msg .qbox b{display:block;font-size:11.5px;margin-bottom:1px}
+.msg .rxns{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
+.msg .rxn{border:1px solid var(--line);background:var(--line2);color:var(--ink2);border-radius:999px;padding:1px 8px;font-size:12px;line-height:1.5;cursor:pointer}
+.msg .rxn.mine{background:var(--acc);border-color:var(--acc);color:#fff}
+.msg.me .rxn{background:rgba(255,255,255,.22);border-color:transparent;color:#fff}
+.msg.me .rxn.mine{background:rgba(255,255,255,.45)}
