@@ -29,6 +29,27 @@ let chatMeta = { conv: null, members: [], myRow: null, otherRow: null };
 let chatMsgs = [];                // messages of the open conversation, oldest first
 let chatMsgMap = {};              // id -> message (quote lookups)
 let chatReactions = {};          // message_id -> { emoji: {count, mine} }
+/* ---------- CHAT PACK 2 state ---------- */
+let chatPollVotes = {};          // message_id -> { counts: {choiceIdx: n}, mine: choiceIdx|null, total }
+let chatListMode = 'main';       // chat list filter: 'main' | 'archived' | 'restricted'
+const POLL_PREFIX = '\u{1F5F3}POLL:';
+function pollOf(m){
+  if (!m || !m.body || !m.body.startsWith(POLL_PREFIX)) return null;
+  try { const p = JSON.parse(m.body.slice(POLL_PREFIX.length)); return (p && p.q && Array.isArray(p.options) && p.options.length >= 2) ? p : null; } catch (e) { return null; }
+}
+/* media detection for chat memories: voice notes, file attachments, bare image URLs */
+function chatMediaOf(m){
+  const b = (m && m.body) || '';
+  if (b.startsWith('🎧AUDIO:')) return { type: 'audio', url: b.slice(8) };
+  if (b.startsWith('📎FILE:')) {
+    const rest = b.slice(7); const i = rest.indexOf('|');
+    const url = i >= 0 ? rest.slice(0, i) : rest; const name = i >= 0 ? rest.slice(i + 1) : '';
+    const isImg = /\.(jpe?g|png|webp|gif)$/i.test(name) || /\.(jpe?g|png|webp|gif)(\?|$)/i.test(url);
+    return isImg ? { type: 'image', url, name } : { type: 'file', url, name };
+  }
+  if (/^https?:\/\/\S+\.(jpe?g|png|webp|gif)(\?\S*)?$/i.test(b)) return { type: 'image', url: b };
+  return null;
+}
 /* 12 chat themes: [key, color1, color2, Bangla label]. Bubble gradient = c1->c2 (white text stays
    readable in light + dark); the chat area gets a soft tint from the same pair. */
 const CHAT_THEMES = [
@@ -173,6 +194,26 @@ const I18N = {
   'রিড রিসিপ্ট লুকানো হয়েছে': 'Read receipts hidden', 'রিড রিসিপ্ট দেখানো হবে': 'Read receipts will be shown',
   'ফাইল আপলোড হচ্ছে...': 'Uploading file...', 'খালি মেসেজ হবে না': "Message can't be empty", 'ডাকনাম দেওয়া যাবে না': "Can't set a nickname here",
   'সম্পাদিত': 'edited',
+  /* chat pack 2 */
+  'আর্কাইভ করা চ্যাট': 'Archived chats', 'রেস্ট্রিক্ট করা চ্যাট': 'Restricted chats', 'এখানে কিছু নেই': 'Nothing here',
+  'আর্কাইভ থেকে তোলো': 'Unarchive', 'রেস্ট্রিক্ট করো': 'Restrict', 'রেস্ট্রিক্ট সরাও': 'Remove restrict',
+  'আর্কাইভ করা হয়েছে': 'Archived', 'আর্কাইভ থেকে তোলা হয়েছে': 'Unarchived',
+  'রেস্ট্রিক্ট করা হয়েছে': 'Restricted', 'রেস্ট্রিক্ট সরানো হয়েছে': 'Restrict removed',
+  'চ্যাটে খোঁজো': 'Search in chat', 'যা খুঁজছ লেখো...': 'Type what you are looking for...',
+  'এই চ্যাটের লেখা মেসেজগুলোর মধ্যে খোঁজো': 'Search the text messages in this chat', 'কোনো ফলাফল নেই': 'No results', 'পাওয়া যায়নি': 'Not found',
+  'নতুন পোল': 'New poll', 'প্রশ্ন লেখো': 'Write a question', 'পোল পাঠাও': 'Send poll', 'পোল পাঠানো হয়েছে ✓': 'Poll sent ✓',
+  'প্রশ্ন লেখো...': 'Write a question...', 'কমপক্ষে ২টা অপশন দাও': 'Give at least 2 options', 'ভোট দেওয়া যায়নি': "Couldn't vote", 'পোল পাঠানো যায়নি': "Couldn't send the poll",
+  'ঘোষণা': 'Announcement', 'ঘোষণা লেখো...': 'Write an announcement...', 'ঘোষণাটা চ্যাটের উপরে পিন হয়ে থাকবে — সব সদস্য দেখবে।': 'The announcement stays pinned at the top of the chat — all members will see it.',
+  'ঘোষণা সেভ হয়েছে ✓': 'Announcement saved ✓', 'ঘোষণা মোছো': 'Delete announcement', 'ঘোষণা মোছা হয়েছে': 'Announcement deleted', 'ঘোষণা সেভ হয়নি': "Couldn't save the announcement",
+  'গ্রুপ অ্যাডমিন': 'Group admin', 'সদস্যরা': 'Members', 'সরাও': 'Remove', 'সদস্য সরানো হয়েছে': 'Member removed', 'সরানো যায়নি': "Couldn't remove",
+  'কে মেসেজ পাঠাতে পারবে': 'Who can message you', 'কে মেসেজ পাঠাতে পারবে?': 'Who can message you?',
+  'শুধু নতুন চ্যাট শুরুর ক্ষেত্রে প্রযোজ্য — পুরনো চ্যাট আগের মতোই চলবে।': 'Applies only when a new chat is started — existing chats keep working as before.',
+  'কেউ না': 'No one', 'মেসেজ প্রাইভেসি ঠিক হয়েছে ✓': 'Message privacy set ✓',
+  'এই ব্যবহারকারী মেসেজ গ্রহণ করেন না': 'This user does not accept messages', 'শুধু বন্ধুরা মেসেজ পাঠাতে পারে': 'Only friends can send messages',
+  'তোমার নোট': 'Your note', 'নোট লেখো...': 'Write a note...', 'নোট মোছো': 'Delete note', 'নোট সেভ হয়েছে ✓': 'Note saved ✓', 'নোট মোছা হয়েছে': 'Note deleted', 'নোট সেভ হয়নি': "Couldn't save the note",
+  'বন্ধুরা ২৪ ঘণ্টা এই নোটটা চ্যাটের উপরে দেখবে।': 'Friends will see this note above the chat list for 24 hours.',
+  'কুইক রিঅ্যাকশন': 'Quick reaction', 'কুইক রিঅ্যাকশন বদলানো হয়েছে': 'Quick reaction changed',
+  'এই চ্যাটের মিডিয়া': 'Chat media', 'কোনো মিডিয়া নেই': 'No media yet',
   'বন্ধ করো': 'Close', 'বন্ধুদের সাথে প্রতিদিনের আড্ডা, এক জায়গায়': 'Everyday adda with friends, in one place',
   'তোমার নাম': 'Your name', 'ইমেইল': 'Email', 'পাসওয়ার্ড (কমপক্ষে ৬ অক্ষর)': 'Password (at least 6 characters)',
   'লগ ইন': 'Log in', 'অ্যাকাউন্ট নেই?': "Don't have an account?", 'নতুন অ্যাকাউন্ট খোলো': 'Create a new account',
@@ -501,7 +542,7 @@ function i18nText(txt){
 function i18nSkip(node){
   const el = node.parentElement;
   if (!el) return true;
-  if (el.closest('.ptext, .msg, script, style, textarea')) return true;
+  if (el.closest('.ptext, .msg, .usercontent, script, style, textarea')) return true;
   if (el.closest('#clist') && el.tagName === 'SMALL' && (el.getAttribute('style') || '').includes('display:block')) return true;
   const st = node.nodeValue.trim(); if (el.closest('button.story') && st !== 'তুমি' && st !== 'তুমি ＋') return true;
   return false;
@@ -1195,7 +1236,7 @@ function subscribePresence(){
     const next = new Set(Object.keys(presenceChannel.presenceState()));
     const changed = next.size !== onlineIds.size || [...next].some(id => !onlineIds.has(id));
     onlineIds = next;
-    if (changed && curView === 'chat' && !activeChat) renderChatList();
+    if (changed && curView === 'chat' && !activeChat) renderChatList(chatListMode);
     if (activeChat) {
       let typer = null;
       const st = presenceChannel.presenceState();
@@ -2029,13 +2070,16 @@ async function leaveGroup(gid){
 }
 
 /* ---------- CHAT ---------- */
-async function renderChatList(){
+async function renderChatList(mode = 'main'){
   curView = 'chat'; activeChat = null; renderShell();
+  chatListMode = mode;
   if (typingChannel) { sb.removeChannel(typingChannel); typingChannel = null; }
-  view().innerHTML = `<div class="view"><div style="padding:14px 16px;font-size:18px;font-weight:800">চ্যাট</div><div id="chatList"><div class="empty">লোড হচ্ছে...</div></div></div>`;
+  const head = mode === 'archived' ? 'আর্কাইভ করা চ্যাট' : mode === 'restricted' ? 'রেস্ট্রিক্ট করা চ্যাট' : 'চ্যাট';
+  view().innerHTML = `<div class="view"><div style="padding:14px 16px;font-size:18px;font-weight:800;display:flex;align-items:center;gap:9px">${mode !== 'main' ? `<button class="icb" style="width:34px;height:34px" onclick="renderChatList()">←</button>` : ''}${head}</div>${mode === 'main' ? '<div id="notesStrip"></div>' : ''}<div id="chatList"><div class="empty">লোড হচ্ছে...</div></div></div>`;
+  if (mode === 'main') renderNotesStrip();
   const { data: myConvs } = await sb.from('conversation_members').select('*').eq('user_id', me.id);
   const ids = (myConvs || []).map(r => r.conversation_id);
-  if (!ids.length) { $('#chatList').innerHTML = '<div class="empty">এখনো কোনো চ্যাট নেই।<br>বন্ধুর প্রোফাইল থেকে "মেসেজ" চাপ দিলেই চ্যাট শুরু হবে।</div>'; return; }
+  if (!ids.length) { const cl = $('#chatList'); if (cl) cl.innerHTML = mode === 'main' ? '<div class="empty">এখনো কোনো চ্যাট নেই।<br>বন্ধুর প্রোফাইল থেকে "মেসেজ" চাপ দিলেই চ্যাট শুরু হবে।</div>' : '<div class="empty">এখানে কিছু নেই</div>'; return; }
   const myRowMap = {}; (myConvs || []).forEach(r => myRowMap[r.conversation_id] = r);
   const [{ data: convs }, { data: members }, { data: msgs }] = await Promise.all([
     sb.from('conversations').select('*').in('id', ids),
@@ -2057,9 +2101,59 @@ async function renderChatList(){
     else { title = 'চ্যাট'; avHtml = avatar(null, 47, 17); }
     return { c, title, avHtml, lm, myRow, otherId };
   }).sort((a, b) => ((b.myRow.pinned ? 1 : 0) - (a.myRow.pinned ? 1 : 0)) || (new Date(b.lm?.created_at || b.c.created_at) - new Date(a.lm?.created_at || a.c.created_at)));
-  $('#chatList').innerHTML = rows.map(({ c, title, avHtml, lm, myRow, otherId }) => `<button class="chatrow" onclick="openChat('${c.id}')"><span class="avw">${avHtml}${otherId && onlineIds.has(otherId) ? '<span class="ondot"></span>' : ''}</span><span style="flex:1;min-width:0"><b>${myRow.pinned ? ic('pin', 12) + ' ' : ''}${esc(title)}</b><small>${lm ? esc(snippetOf(lm.body)) : 'চ্যাট শুরু করো'}</small></span>${myRow.muted ? `<span style="color:var(--faint);display:inline-flex">${ic('mute', 14)}</span>` : ''}<small style="color:var(--faint);font-size:11px">${lm ? timeAgo(lm.created_at) : ''}</small></button>`).join('');
+  const rowHtml = ({ c, title, avHtml, lm, myRow, otherId }) => `<button class="chatrow" onclick="openChat('${c.id}')"><span class="avw">${avHtml}${otherId && onlineIds.has(otherId) ? '<span class="ondot"></span>' : ''}</span><span style="flex:1;min-width:0"><b>${myRow.pinned ? ic('pin', 12) + ' ' : ''}${esc(title)}</b><small>${lm ? esc(snippetOf(lm.body)) : 'চ্যাট শুরু করো'}</small></span>${myRow.muted ? `<span style="color:var(--faint);display:inline-flex">${ic('mute', 14)}</span>` : ''}<small style="color:var(--faint);font-size:11px">${lm ? timeAgo(lm.created_at) : ''}</small></button>`;
+  const shown = rows.filter(r => mode === 'archived' ? !!r.myRow.archived : mode === 'restricted' ? !!r.myRow.restricted : (!r.myRow.archived && !r.myRow.restricted));
+  let html = shown.length ? shown.map(rowHtml).join('') : '<div class="empty">এখানে কিছু নেই</div>';
+  if (mode === 'main') {
+    const nArch = rows.filter(r => r.myRow.archived).length, nRestr = rows.filter(r => r.myRow.restricted).length;
+    html += `<button class="chatfoot" onclick="renderChatList('archived')">${ic('archive', 17)} আর্কাইভ করা চ্যাট${nArch ? `<span class="pill" style="margin-left:auto">${bn(nArch)}</span>` : ''}</button>`;
+    html += `<button class="chatfoot" onclick="renderChatList('restricted')">${ic('eyeOff', 17)} রেস্ট্রিক্ট করা চ্যাট${nRestr ? `<span class="pill" style="margin-left:auto">${bn(nRestr)}</span>` : ''}</button>`;
+  }
+  const clEl = $('#chatList'); if (clEl) clEl.innerHTML = html;
 }
-async function findOrCreateDM(uid){
+/* ---------- notes: 24h mini-status strip on top of the chat list ---------- */
+async function renderNotesStrip(){
+  const el = $('#notesStrip'); if (!el) return;
+  const fids = [...friendIds];
+  let fresh = [];
+  if (fids.length) {
+    const { data } = await sb.from('profiles').select('id,name,avatar_url,note,note_at').in('id', fids);
+    (data || []).forEach(p => { profilesCache[p.id] = Object.assign({}, profilesCache[p.id], p); });
+    fresh = (data || []).filter(p => p.note && p.note_at && Date.now() - new Date(p.note_at).getTime() < 864e5);
+  }
+  if (!$('#notesStrip')) return;
+  const item = (p, mine) => `<button class="noteitem" onclick="${mine ? 'noteSheet()' : `friendNoteSheet('${p.id}')`}"><span class="notebub usercontent">${p.note ? esc(p.note) : '+'}</span>${avatar(p, 47, 17)}<small>${mine ? 'তোমার নোট' : esc(p.name.split(' ')[0])}</small></button>`;
+  el.innerHTML = `<div class="notesstrip">${item(me, true)}${fresh.map(p => item(p, false)).join('')}</div>`;
+}
+function friendNoteSheet(uid){
+  const p = prof(uid);
+  sheet(`<div style="text-align:center;padding:6px 0 4px">${avatar(p, 60, 22)}<h3 style="margin:9px 0 4px">${esc(p.name)}</h3>
+    <p class="usercontent" style="font-size:15px;line-height:1.6;background:var(--line2);border-radius:16px;padding:13px 15px">${esc(p.note || '')}</p>
+    <small style="color:var(--faint)">${p.note_at ? timeAgo(p.note_at) : ''}</small></div>
+    <button class="btn block" style="margin-top:12px" onclick="closeSheet();startChat('${uid}')">মেসেজ করো</button>`);
+}
+function noteSheet(){
+  sheet(`<h3>${ic('edit', 18)} তোমার নোট</h3>
+    <p style="font-size:13px;color:var(--mut);margin-bottom:10px">বন্ধুরা ২৪ ঘণ্টা এই নোটটা চ্যাটের উপরে দেখবে।</p>
+    <textarea class="field" id="noteInput" rows="2" maxlength="80" placeholder="নোট লেখো...">${esc(me.note || '')}</textarea>
+    <button class="btn block" onclick="saveNote()">সেভ করো</button>
+    ${me.note ? '<button class="btn ghost block" style="margin-top:8px" onclick="clearNote()">নোট মোছো</button>' : ''}`);
+}
+async function saveNote(){
+  const note = $('#noteInput').value.trim();
+  const nowIso = new Date().toISOString();
+  const { error } = await sb.from('profiles').update({ note, note_at: nowIso }).eq('id', me.id);
+  if (error) { toast('নোট সেভ হয়নি'); return; }
+  me.note = note; me.note_at = nowIso; profilesCache[me.id] = me;
+  closeSheet(); toast('নোট সেভ হয়েছে ✓'); renderNotesStrip();
+}
+async function clearNote(){
+  const { error } = await sb.from('profiles').update({ note: '', note_at: null }).eq('id', me.id);
+  if (error) { toast('মোছা যায়নি'); return; }
+  me.note = ''; me.note_at = null; profilesCache[me.id] = me;
+  closeSheet(); toast('নোট মোছা হয়েছে'); renderNotesStrip();
+}
+async function findExistingDM(uid){
   const { data: mine } = await sb.from('conversation_members').select('conversation_id').eq('user_id', me.id);
   const myIds = (mine || []).map(r => r.conversation_id);
   if (myIds.length) {
@@ -2069,6 +2163,11 @@ async function findOrCreateDM(uid){
       if (conv && !conv.is_group) return conv.id;
     }
   }
+  return null;
+}
+async function findOrCreateDM(uid){
+  const existing = await findExistingDM(uid);
+  if (existing) return existing;
   const newId = crypto.randomUUID();
   const { error } = await sb.from('conversations').insert({ id: newId, is_group: false });
   if (error) return null;
@@ -2076,6 +2175,14 @@ async function findOrCreateDM(uid){
   return newId;
 }
 async function startChat(uid){
+  if (uid === me.id) return;
+  const existing = await findExistingDM(uid);
+  if (existing) { openChat(existing); return; }
+  /* message-privacy (client-level): checked only when a NEW chat would be created */
+  await cacheProfiles([uid]);
+  const target = prof(uid);
+  if (target.msg_privacy === 'nobody') { toast('এই ব্যবহারকারী মেসেজ গ্রহণ করেন না'); return; }
+  if (target.msg_privacy === 'friends' && !friendIds.has(uid)) { toast('শুধু বন্ধুরা মেসেজ পাঠাতে পারে'); return; }
   const id = await findOrCreateDM(uid);
   if (id) openChat(id); else toast('চ্যাট খোলা যায়নি');
 }
@@ -2099,8 +2206,10 @@ async function openChat(convId){
   const otherRow = (members || []).find(m => m.user_id !== me.id) || null;
   chatMeta = { conv, members: members || [], myRow, otherRow };
   let title = 'চ্যাট', headAv = '';
+  chatMeta.group = null;
   if (conv && conv.is_group && conv.group_id) {
-    const { data: g } = await sb.from('groups').select('name').eq('id', conv.group_id).single();
+    const { data: g } = await sb.from('groups').select('*').eq('id', conv.group_id).single();
+    chatMeta.group = g || null;
     title = (g ? g.name : 'গ্রুপ') + ' · গ্রুপ চ্যাট'; headAv = `<span class="av" style="background:#4F46E5;width:38px;height:38px;font-size:15px">${ic('users', 18)}</span>`;
   } else if (otherRow) {
     const p = prof(otherRow.user_id); title = otherRow.nickname || p.name; headAv = avatar(p, 38, 15);
@@ -2108,11 +2217,12 @@ async function openChat(convId){
   const th = conv ? chatTheme(conv.theme) : null;
   view().innerHTML = `<div class="view" ${th ? `style="--cgrad:linear-gradient(135deg,${th[1]},${th[2]})"` : ''}>
     <div style="display:flex;gap:10px;align-items:center;padding:12px 16px;background:${th ? `linear-gradient(90deg,${th[1]}30,${th[2]}30)` : 'var(--card)'};border-bottom:1px solid var(--line2);position:sticky;top:57px;z-index:5">
-      <button class="icb" style="width:34px;height:34px" onclick="renderChatList()">←</button>${headAv}<b style="font-size:15.5px;flex:1;min-width:0">${esc(title)}</b><button class="icb" style="width:34px;height:34px" onclick="chatInfoSheet()" aria-label="চ্যাটের তথ্য">${ic('dots', 18)}</button></div>
+      <button class="icb" style="width:34px;height:34px" onclick="renderChatList()">←</button>${headAv}<b style="font-size:15.5px;flex:1;min-width:0">${esc(title)}</b><button class="icb" style="width:34px;height:34px" onclick="chatSearchSheet()" aria-label="চ্যাটে খোঁজো">${ic('search', 17)}</button><button class="icb" style="width:34px;height:34px" onclick="chatInfoSheet()" aria-label="চ্যাটের তথ্য">${ic('dots', 18)}</button></div>
+    ${conv && conv.announcement ? `<div class="annbar">${ic('pin', 13)}<span class="usercontent" style="flex:1;min-width:0">${esc(conv.announcement)}</span></div>` : ''}
     <div id="typingLine" style="display:none;padding:5px 16px;font-size:12px;color:var(--mut);background:var(--card);border-bottom:1px solid var(--line2)"></div>
     <div ${th ? `style="background:linear-gradient(165deg,${th[1]}24,${th[2]}24)"` : ''}><div id="msgList" style="padding:10px 0 4px"><div class="empty">লোড হচ্ছে...</div></div></div>
     <div id="replyBar"></div>
-    <div class="chatbar"><button class="icb" onclick="stickerSheet('${convId}')" aria-label="স্টিকার">${I.smile}</button><label class="icb" style="cursor:pointer" aria-label="ফাইল পাঠাও">${ic('clip')}<input type="file" style="display:none" onchange="sendFileMsg('${convId}',this)"></label><label class="icb" style="cursor:pointer" aria-label="ভয়েস মেসেজ">${I.mic}<input type="file" accept="audio/*" style="display:none" onchange="sendVoiceMsg('${convId}',this)"></label><input id="msgInput" placeholder="মেসেজ লেখো..." oninput="onMsgInput()" onkeydown="if(event.key==='Enter')sendMsg('${convId}')"><button class="send" onclick="sendMsg('${convId}')">${ic('send', 18)}</button></div></div>`;
+    <div class="chatbar"><button class="icb" onclick="chatPollSheet()" aria-label="পোল">${ic('chart', 18)}</button><button class="icb" onclick="stickerSheet('${convId}')" aria-label="স্টিকার">${I.smile}</button><label class="icb" style="cursor:pointer" aria-label="ফাইল পাঠাও">${ic('clip')}<input type="file" style="display:none" onchange="sendFileMsg('${convId}',this)"></label><label class="icb" style="cursor:pointer" aria-label="ভয়েস মেসেজ">${I.mic}<input type="file" accept="audio/*" style="display:none" onchange="sendVoiceMsg('${convId}',this)"></label><input id="msgInput" placeholder="মেসেজ লেখো..." oninput="onMsgInput()" onkeydown="if(event.key==='Enter')sendMsg('${convId}')"><button class="quickbtn" onclick="sendQuickEmoji('${convId}')" aria-label="কুইক রিঅ্যাকশন">${esc((chatMeta.myRow && chatMeta.myRow.quick_emoji) || '❤️')}</button><button class="send" onclick="sendMsg('${convId}')">${ic('send', 18)}</button></div></div>`;
   if (!me.hide_reads) {
     const nowIso = new Date().toISOString();
     sb.from('conversation_members').update({ last_read_at: nowIso }).eq('conversation_id', convId).eq('user_id', me.id).then(() => {});
@@ -2123,6 +2233,8 @@ async function openChat(convId){
   chatMsgMap = {}; chatMsgs.forEach(m => chatMsgMap[m.id] = m);
   chatReactions = {};
   await loadReactions(chatMsgs.map(m => m.id));
+  chatPollVotes = {};
+  await loadPollVotes(chatMsgs.filter(m => pollOf(m)).map(m => m.id));
   renderMsgList();
   if (chatChannel) sb.removeChannel(chatChannel);
   chatChannel = sb.channel('chat-' + convId)
@@ -2155,6 +2267,13 @@ async function openChat(convId){
       if (!mid || !chatMsgMap[mid]) return;
       await loadReactions([mid]);
       renderMsgList(false);
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_poll_votes' }, async payload => {
+      if (activeChat !== convId) return;
+      const mid = (payload.new && payload.new.message_id) || (payload.old && payload.old.message_id);
+      if (!mid || !chatMsgMap[mid]) return;
+      await loadPollVotes([mid]);
+      renderMsgList(false);
     }).subscribe();
   if (typingChannel && typingTopic !== convId) { sb.removeChannel(typingChannel); typingChannel = null; }
   if (!typingChannel) {
@@ -2169,6 +2288,7 @@ async function openChat(convId){
 }
 function snippetOf(body){
   if (!body) return '';
+  if (body.startsWith(POLL_PREFIX)) { const p = (() => { try { return JSON.parse(body.slice(POLL_PREFIX.length)); } catch (e) { return null; } })(); return '🗳 ' + (p && p.q ? p.q : tx('পোল', 'Poll')); }
   if (body.startsWith('🎧AUDIO:')) return '🎧 ' + tx('ভয়েস মেসেজ', 'Voice message');
   if (body.startsWith('📎FILE:')) { const r = body.slice(7); const i = r.indexOf('|'); return '📎 ' + (i >= 0 ? r.slice(i + 1) : tx('ফাইল', 'File')); }
   const chars = [...body];
@@ -2210,20 +2330,32 @@ function renderMsgList(scroll = true){
   box.innerHTML = html;
   if (scroll) window.scrollTo(0, document.body.scrollHeight);
 }
+function pollCardHtml(m, poll){
+  const v = chatPollVotes[m.id] || { counts: {}, mine: null, total: 0 };
+  const total = v.total || 0;
+  const opts = poll.options.map((opt, i) => {
+    const n = v.counts[i] || 0;
+    const pct = total ? Math.round(n * 100 / total) : 0;
+    return `<button class="cpopt" onclick="event.stopPropagation();voteChatPoll('${m.id}',${i})"><span class="cpfill" style="width:${pct}%"></span><span class="cplabel">${esc(opt)}${v.mine === i ? ' ✓' : ''}</span><span class="cppct">${bn(n)} · ${bn(pct)}%</span></button>`;
+  }).join('');
+  return `<div class="cpoll"><div class="cpq">🗳 ${esc(poll.q)}</div>${opts}<div class="cptotal">${bn(total)} ${tx('টি ভোট', total === 1 ? 'vote' : 'votes')}</div></div>`;
+}
 function msgHtml(m){
   const mine = m.sender_id === me.id;
   const edited = m.edited_at ? tx(' · সম্পাদিত', ' · edited') : '';
   const tail = `<small>${timeAgo(m.created_at)}${edited}</small>`;
   const q = quoteHtml(m), rx = rxnHtml(m);
-  if (m.body && m.body.startsWith('🎧AUDIO:')) return `<div class="msg ${mine ? 'me' : ''}" onclick="msgTap(event,'${m.id}')">${q}<audio controls src="${esc(m.body.slice(8))}" style="max-width:210px;height:36px"></audio>${rx}${tail}</div>`;
+  const poll = pollOf(m);
+  if (poll) return `<div class="msg ${mine ? 'me' : ''}" id="m-${m.id}" onclick="msgTap(event,'${m.id}')">${q}${pollCardHtml(m, poll)}${rx}${tail}</div>`;
+  if (m.body && m.body.startsWith('🎧AUDIO:')) return `<div class="msg ${mine ? 'me' : ''}" id="m-${m.id}" onclick="msgTap(event,'${m.id}')">${q}<audio controls src="${esc(m.body.slice(8))}" style="max-width:210px;height:36px"></audio>${rx}${tail}</div>`;
   if (m.body && m.body.startsWith('📎FILE:')) {
     const rest = m.body.slice(7); const bar = rest.indexOf('|');
     const url = bar >= 0 ? rest.slice(0, bar) : rest; const name = bar >= 0 ? rest.slice(bar + 1) : tx('ফাইল', 'File');
-    return `<div class="msg ${mine ? 'me' : ''}" onclick="msgTap(event,'${m.id}')">${q}<a href="${esc(url)}" target="_blank" rel="noopener" style="display:flex;gap:9px;align-items:center;color:inherit;text-decoration:none">${ic('file', 24)}<span style="min-width:0"><b style="display:block;font-size:13px;word-break:break-all">${esc(name)}</b><span style="font-size:11px;opacity:.75">${tx('ডাউনলোড করতে চাপ দাও', 'Tap to download')}</span></span></a>${rx}${tail}</div>`;
+    return `<div class="msg ${mine ? 'me' : ''}" id="m-${m.id}" onclick="msgTap(event,'${m.id}')">${q}<a href="${esc(url)}" target="_blank" rel="noopener" style="display:flex;gap:9px;align-items:center;color:inherit;text-decoration:none">${ic('file', 24)}<span style="min-width:0"><b style="display:block;font-size:13px;word-break:break-all">${esc(name)}</b><span style="font-size:11px;opacity:.75">${tx('ডাউনলোড করতে চাপ দাও', 'Tap to download')}</span></span></a>${rx}${tail}</div>`;
   }
   const sticker = m.body && [...m.body].length <= 3 && /\p{Extended_Pictographic}/u.test(m.body);
-  if (sticker) return `<div class="msg ${mine ? 'me' : ''}" onclick="msgTap(event,'${m.id}')" style="background:none;box-shadow:none;font-size:52px;padding:2px">${q}${esc(m.body)}${rx}<small style="font-size:10px">${timeAgo(m.created_at)}${edited}</small></div>`;
-  return `<div class="msg ${mine ? 'me' : ''}" onclick="msgTap(event,'${m.id}')">${q}${esc(m.body)}${rx}${tail}</div>`;
+  if (sticker) return `<div class="msg ${mine ? 'me' : ''}" id="m-${m.id}" onclick="msgTap(event,'${m.id}')" style="background:none;box-shadow:none;font-size:52px;padding:2px">${q}${esc(m.body)}${rx}<small style="font-size:10px">${timeAgo(m.created_at)}${edited}</small></div>`;
+  return `<div class="msg ${mine ? 'me' : ''}" id="m-${m.id}" onclick="msgTap(event,'${m.id}')">${q}${esc(m.body)}${rx}${tail}</div>`;
 }
 /* ---------- message actions: sheet / reply / edit / delete / reactions ---------- */
 function msgTap(ev, mid){
@@ -2233,7 +2365,7 @@ function msgTap(ev, mid){
 function msgActions(mid){
   const m = chatMsgMap[mid]; if (!m) return;
   const mine = m.sender_id === me.id;
-  const isText = m.body && !m.body.startsWith('🎧AUDIO:') && !m.body.startsWith('📎FILE:');
+  const isText = m.body && !m.body.startsWith('🎧AUDIO:') && !m.body.startsWith('📎FILE:') && !pollOf(m);
   const RX = ['❤️', '👍', '😂', '😮', '😢', '🙏'];
   sheet(`<h3>${ic('msg', 18)} মেসেজ অপশন</h3>
     <div style="display:flex;justify-content:space-around;padding:4px 0 12px">${RX.map(e => `<button style="font-size:27px;background:none;border:none;cursor:pointer;padding:4px" onclick="closeSheet();toggleReaction('${mid}','${e}')">${e}</button>`).join('')}</div>
@@ -2260,6 +2392,79 @@ async function loadReactions(ids){
     g[r.emoji].count++; if (r.user_id === me.id) g[r.emoji].mine = true;
   });
   ids.forEach(id => { chatReactions[id] = grouped[id] || {}; });
+}
+async function loadPollVotes(ids){
+  if (!ids || !ids.length) return;
+  const { data } = await sb.from('chat_poll_votes').select('*').in('message_id', ids);
+  const grouped = {};
+  (data || []).forEach(r => {
+    if (!grouped[r.message_id]) grouped[r.message_id] = { counts: {}, mine: null, total: 0 };
+    const g = grouped[r.message_id];
+    g.counts[r.choice] = (g.counts[r.choice] || 0) + 1; g.total++;
+    if (r.user_id === me.id) g.mine = r.choice;
+  });
+  ids.forEach(id => { chatPollVotes[id] = grouped[id] || { counts: {}, mine: null, total: 0 }; });
+}
+async function voteChatPoll(mid, idx){
+  const { error } = await sb.from('chat_poll_votes').upsert({ message_id: mid, user_id: me.id, choice: idx }, { onConflict: 'message_id,user_id' });
+  if (error) { toast('ভোট দেওয়া যায়নি'); return; }
+  await loadPollVotes([mid]);
+  renderMsgList(false);
+}
+function chatPollSheet(){
+  const convId = activeChat; if (!convId) return;
+  sheet(`<h3>${ic('chart', 18)} নতুন পোল</h3>
+    <input class="field" id="cpQ" placeholder="প্রশ্ন লেখো">
+    <input class="field cpOpt" placeholder="অপশন ১">
+    <input class="field cpOpt" placeholder="অপশন ২">
+    <input class="field cpOpt" placeholder="অপশন ৩ (ঐচ্ছিক)">
+    <input class="field cpOpt" placeholder="অপশন ৪ (ঐচ্ছিক)">
+    <button class="btn block" onclick="sendChatPoll('${convId}')">পোল পাঠাও</button>`);
+}
+async function sendChatPoll(convId){
+  const q = $('#cpQ').value.trim();
+  const options = [...document.querySelectorAll('.cpOpt')].map(i => i.value.trim()).filter(Boolean);
+  if (!q) { toast('প্রশ্ন লেখো'); return; }
+  if (options.length < 2) { toast('কমপক্ষে ২টা অপশন দাও'); return; }
+  const { error } = await sb.from('messages').insert({ conversation_id: convId, sender_id: me.id, body: POLL_PREFIX + JSON.stringify({ q, options }) });
+  if (error) { toast('পোল পাঠানো যায়নি'); return; }
+  closeSheet(); toast('পোল পাঠানো হয়েছে ✓');
+  const { data: members } = await sb.from('conversation_members').select('*').eq('conversation_id', convId);
+  (members || []).filter(m => m.user_id !== me.id && !m.muted && !m.restricted).forEach(m => notify(m.user_id, 'message', null, convId));
+}
+/* ---------- in-chat search ---------- */
+function chatSearchSheet(){
+  sheet(`<h3>${ic('search', 18)} চ্যাটে খোঁজো</h3>
+    <input class="field" id="csInput" placeholder="যা খুঁজছ লেখো..." oninput="chatSearchRun(this.value)">
+    <div id="csResults"><div class="empty">এই চ্যাটের লেখা মেসেজগুলোর মধ্যে খোঁজো</div></div>`);
+  const inp = $('#csInput'); if (inp) inp.focus();
+}
+function chatSearchRun(q){
+  const box = $('#csResults'); if (!box) return;
+  const needle = (q || '').trim().toLowerCase();
+  if (!needle) { box.innerHTML = '<div class="empty">এই চ্যাটের লেখা মেসেজগুলোর মধ্যে খোঁজো</div>'; return; }
+  const hits = chatMsgs.filter(m => {
+    const b = m.body || '';
+    if (!b || b.startsWith('🎧AUDIO:') || b.startsWith('📎FILE:') || pollOf(m)) return false;
+    if ([...b].length <= 3 && /\p{Extended_Pictographic}/u.test(b)) return false;
+    return b.toLowerCase().includes(needle);
+  }).slice(-30).reverse();
+  box.innerHTML = hits.length ? hits.map(m => `<button class="menu-item" onclick="gotoMsg('${m.id}')"><span style="flex:1;min-width:0"><b style="font-size:13px">${esc(prof(m.sender_id).name)}</b><br><span style="font-size:13px;color:var(--mut)">${esc(snippetOf(m.body))}</span></span><small style="color:var(--faint);font-size:11px;flex:none">${timeAgo(m.created_at)}</small></button>`).join('') : '<div class="empty">কোনো ফলাফল নেই</div>';
+}
+async function gotoMsg(mid){
+  closeSheet();
+  let el = document.getElementById('m-' + mid);
+  if (!el && activeChat) { await openChat(activeChat); el = document.getElementById('m-' + mid); }
+  if (!el) { toast('পাওয়া যায়নি'); return; }
+  el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  el.classList.add('flash');
+  setTimeout(() => { const e2 = document.getElementById('m-' + mid); if (e2) e2.classList.remove('flash'); }, 1800);
+}
+/* ---------- quick-reaction emoji ---------- */
+async function sendQuickEmoji(convId){
+  const e = (chatMeta.myRow && chatMeta.myRow.quick_emoji) || '❤️';
+  const { error } = await sb.from('messages').insert({ conversation_id: convId, sender_id: me.id, body: e });
+  if (error) toast('যায়নি');
 }
 function setReply(mid){
   const m = chatMsgMap[mid]; if (!m) return;
@@ -2306,6 +2511,9 @@ function chatInfoSheet(){
   if (!conv) return;
   const nickRow = conv.is_group ? myRow : otherRow;
   const cur = conv.theme || '';
+  const isGroupCreator = !!(conv.is_group && chatMeta.group && chatMeta.group.created_by === me.id);
+  const QUICK_EMOJIS = ['❤️', '😂', '😮', '😢', '👍', '🙏', '🔥', '😍'];
+  const quickCur = (myRow && myRow.quick_emoji) || '❤️';
   sheet(`<h3>${ic('info', 18)} চ্যাটের তথ্য</h3>
     <button class="menu-item" onclick="setNicknameSheet()">${ic('edit')} ডাকনাম দাও${nickRow && nickRow.nickname ? `<span style="margin-left:auto" class="pill">${esc(nickRow.nickname)}</span>` : ''}</button>
     <div class="seclabel" style="margin:12px 0 4px">চ্যাটের থিম</div>
@@ -2315,7 +2523,90 @@ function chatInfoSheet(){
     </div>
     <button class="menu-item" onclick="toggleChatPin()">${ic('pin')} ${myRow && myRow.pinned ? 'পিন সরাও' : 'পিন করো'}</button>
     <button class="menu-item" onclick="toggleChatMute()">${ic('mute')} ${myRow && myRow.muted ? 'আনমিউট' : 'মিউট'}</button>
-    <button class="menu-item" onclick="toggleDisappear()">${ic('clock')} ডিসঅ্যাপিয়ারিং মেসেজ<span style="margin-left:auto" class="pill">${conv.disappear ? 'চালু' : 'বন্ধ'}</span></button>`);
+    <button class="menu-item" onclick="toggleDisappear()">${ic('clock')} ডিসঅ্যাপিয়ারিং মেসেজ<span style="margin-left:auto" class="pill">${conv.disappear ? 'চালু' : 'বন্ধ'}</span></button>
+    <button class="menu-item" onclick="chatMediaSheet()">${ic('img')} এই চ্যাটের মিডিয়া</button>
+    <button class="menu-item" onclick="toggleChatArchive()">${ic('archive')} ${myRow && myRow.archived ? 'আর্কাইভ থেকে তোলো' : 'আর্কাইভ করো'}</button>
+    ${!conv.is_group ? `<button class="menu-item" onclick="toggleChatRestrict()">${ic('eyeOff')} ${myRow && myRow.restricted ? 'রেস্ট্রিক্ট সরাও' : 'রেস্ট্রিক্ট করো'}<span style="margin-left:auto" class="pill">${myRow && myRow.restricted ? 'চালু' : 'বন্ধ'}</span></button>` : ''}
+    <div class="seclabel" style="margin:12px 0 4px">কুইক রিঅ্যাকশন</div>
+    <div style="display:flex;justify-content:space-between;padding:2px 0 8px">${QUICK_EMOJIS.map(e => `<button style="font-size:25px;background:${e === quickCur ? 'var(--line2)' : 'none'};border:${e === quickCur ? '2px solid var(--acc)' : '2px solid transparent'};border-radius:50%;width:42px;height:42px;cursor:pointer" onclick="setQuickEmoji('${e}')">${e}</button>`).join('')}</div>
+    ${isGroupCreator ? `
+    <div class="seclabel" style="margin:12px 0 4px">গ্রুপ অ্যাডমিন</div>
+    <button class="menu-item" onclick="announcementSheet()">${ic('pin')} ঘোষণা${conv.announcement ? `<span style="margin-left:auto" class="pill">চালু</span>` : ''}</button>
+    <div class="seclabel" style="margin:12px 0 4px">সদস্যরা</div>
+    ${chatMeta.members.map(mb => { const p = prof(mb.user_id); return `<div class="menu-item" style="cursor:default">${avatar(p, 32, 13)}<span style="flex:1;min-width:0">${esc(p.name)}${mb.user_id === me.id ? ' (তুমি)' : ''}</span>${mb.user_id !== me.id ? `<button class="btn ghost sm" onclick="removeChatMember('${mb.user_id}')">সরাও</button>` : ''}</div>`; }).join('')}` : ''}`);
+}
+async function toggleChatArchive(){
+  const { conv, myRow } = chatMeta; if (!myRow) return;
+  const next = !myRow.archived;
+  const { error } = await sb.from('conversation_members').update({ archived: next }).eq('conversation_id', conv.id).eq('user_id', me.id);
+  if (error) { toast('করা যায়নি'); return; }
+  myRow.archived = next;
+  closeSheet(); toast(next ? 'আর্কাইভ করা হয়েছে' : 'আর্কাইভ থেকে তোলা হয়েছে');
+  renderChatList();
+}
+async function toggleChatRestrict(){
+  const { conv, myRow } = chatMeta; if (!myRow) return;
+  const next = !myRow.restricted;
+  const { error } = await sb.from('conversation_members').update({ restricted: next }).eq('conversation_id', conv.id).eq('user_id', me.id);
+  if (error) { toast('করা যায়নি'); return; }
+  myRow.restricted = next;
+  closeSheet(); toast(next ? 'রেস্ট্রিক্ট করা হয়েছে' : 'রেস্ট্রিক্ট সরানো হয়েছে');
+  if (next) renderChatList();
+}
+async function setQuickEmoji(e){
+  const { conv, myRow } = chatMeta; if (!myRow) return;
+  const { error } = await sb.from('conversation_members').update({ quick_emoji: e }).eq('conversation_id', conv.id).eq('user_id', me.id);
+  if (error) { toast('বদলানো যায়নি'); return; }
+  myRow.quick_emoji = e;
+  closeSheet(); toast('কুইক রিঅ্যাকশন বদলানো হয়েছে');
+  openChat(conv.id);
+}
+function announcementSheet(){
+  const { conv } = chatMeta; if (!conv) return;
+  sheet(`<h3>${ic('pin', 18)} ঘোষণা</h3>
+    <p style="font-size:13px;color:var(--mut);margin-bottom:10px">ঘোষণাটা চ্যাটের উপরে পিন হয়ে থাকবে — সব সদস্য দেখবে।</p>
+    <textarea class="field" id="annInput" rows="2" maxlength="200" placeholder="ঘোষণা লেখো...">${esc(conv.announcement || '')}</textarea>
+    <button class="btn block" onclick="saveAnnouncement()">সেভ করো</button>
+    ${conv.announcement ? '<button class="btn ghost block" style="margin-top:8px" onclick="clearAnnouncement()">ঘোষণা মোছো</button>' : ''}`);
+}
+async function saveAnnouncement(){
+  const { conv } = chatMeta; if (!conv) return;
+  const text = $('#annInput').value.trim();
+  const { error } = await sb.from('conversations').update({ announcement: text }).eq('id', conv.id);
+  if (error) { toast('ঘোষণা সেভ হয়নি'); return; }
+  conv.announcement = text;
+  closeSheet(); toast('ঘোষণা সেভ হয়েছে ✓');
+  openChat(conv.id);
+}
+async function clearAnnouncement(){
+  const { conv } = chatMeta; if (!conv) return;
+  const { error } = await sb.from('conversations').update({ announcement: '' }).eq('id', conv.id);
+  if (error) { toast('মোছা যায়নি'); return; }
+  conv.announcement = '';
+  closeSheet(); toast('ঘোষণা মোছা হয়েছে');
+  openChat(conv.id);
+}
+async function removeChatMember(uid){
+  const { conv } = chatMeta; if (!conv) return;
+  const { error } = await sb.from('conversation_members').delete().eq('conversation_id', conv.id).eq('user_id', uid);
+  if (error) { toast('সরানো যায়নি'); return; }
+  chatMeta.members = chatMeta.members.filter(m => m.user_id !== uid);
+  toast('সদস্য সরানো হয়েছে');
+  chatInfoSheet();
+}
+/* ---------- chat memories: all media shared in this conversation ---------- */
+async function chatMediaSheet(){
+  const { conv } = chatMeta; if (!conv) return;
+  sheet(`<h3>${ic('img', 18)} এই চ্যাটের মিডিয়া</h3><div id="cmBody"><div class="empty">লোড হচ্ছে...</div></div>`);
+  const { data } = await sb.from('messages').select('*').eq('conversation_id', conv.id).order('created_at', { ascending: false }).limit(500);
+  const el = $('#cmBody'); if (!el) return;
+  const media = (data || []).map(m => ({ m, md: chatMediaOf(m) })).filter(x => x.md && (x.md.type === 'image' || x.md.type === 'audio'));
+  if (!media.length) { el.innerHTML = '<div class="empty">কোনো মিডিয়া নেই</div>'; return; }
+  const imgs = media.filter(x => x.md.type === 'image');
+  const voices = media.filter(x => x.md.type === 'audio');
+  el.innerHTML =
+    (imgs.length ? `<div class="mediagrid">${imgs.map(x => `<a href="${esc(x.md.url)}" target="_blank" rel="noopener"><img src="${esc(x.md.url)}" loading="lazy" alt=""></a>`).join('')}</div>` : '') +
+    (voices.length ? `<div class="seclabel" style="margin:10px 0 4px">ভয়েস মেসেজ</div>` + voices.map(x => `<div style="display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid var(--line2)"><span style="flex:1;min-width:0;font-size:12.5px;color:var(--mut)">${esc(prof(x.m.sender_id).name)} · ${timeAgo(x.m.created_at)}</span><audio controls src="${esc(x.md.url)}" style="max-width:190px;height:34px"></audio></div>`).join('') : '');
 }
 function setNicknameSheet(){
   const { conv, myRow, otherRow } = chatMeta;
@@ -2433,7 +2724,7 @@ async function sendMsg(convId){
   if (error) { toast('মেসেজ যায়নি'); inp.value = body; return; }
   clearReply();
   const { data: members } = await sb.from('conversation_members').select('*').eq('conversation_id', convId);
-  (members || []).filter(m => m.user_id !== me.id && !m.muted).forEach(m => notify(m.user_id, 'message', null, convId));
+  (members || []).filter(m => m.user_id !== me.id && !m.muted && !m.restricted).forEach(m => notify(m.user_id, 'message', null, convId));
 }
 
 /* ---------- SETTINGS ---------- */
@@ -2569,6 +2860,7 @@ async function renderSettings(){
       <button class="menu-item" onclick="defAudSheet()">${ic('target')} নতুন পোস্ট কে দেখবে (ডিফল্ট) <span style="margin-left:auto" class="pill">${{ public: 'সবাই', friends: 'বন্ধুরা', close: 'কাছের বন্ধুরা', supporters: 'ফলোয়াররা' }[localStorage.getItem('adda-def-aud') || 'public']}</span></button>
       <button class="menu-item" onclick="renderBlocks()">${ic('ban')} ব্লক করা মানুষ</button>
       <button class="menu-item" onclick="toggleHideReads()">${ic('eyeOff')} রিড রিসিপ্ট লুকাও<span style="margin-left:auto" class="pill">${me.hide_reads ? 'চালু' : 'বন্ধ'}</span></button>
+      <button class="menu-item" onclick="msgPrivacySheet()">${ic('msg')} কে মেসেজ পাঠাতে পারবে <span style="margin-left:auto" class="pill">${{ everyone: 'সবাই', friends: 'শুধু বন্ধুরা', nobody: 'কেউ না' }[me.msg_privacy || 'everyone']}</span></button>
       <button class="menu-item" onclick="aboutSheet()">${ic('info')} আড্ডাBook সম্পর্কে</button>
       <button class="menu-item" onclick="logoutEverywhere()">${ic('power')} সব ডিভাইস থেকে লগ আউট</button>
     </div>
@@ -2610,6 +2902,18 @@ function defAudSheet(){
 function setDefAud(v){
   localStorage.setItem('adda-def-aud', v);
   closeSheet(); toast('ডিফল্ট ঠিক হয়েছে ✓'); renderSettings();
+}
+function msgPrivacySheet(){
+  const cur = me.msg_privacy || 'everyone';
+  const opts = [['everyone', 'globe', 'সবাই'], ['friends', 'users', 'শুধু বন্ধুরা'], ['nobody', 'ban', 'কেউ না']];
+  sheet(`<h3>${ic('msg', 18)} কে মেসেজ পাঠাতে পারবে?</h3><p style="font-size:13px;color:var(--mut);margin-bottom:10px">শুধু নতুন চ্যাট শুরুর ক্ষেত্রে প্রযোজ্য — পুরনো চ্যাট আগের মতোই চলবে।</p>` +
+    opts.map(([v, icn, t]) => `<button class="menu-item" onclick="setMsgPrivacy('${v}')">${ic(icn)} ${t}${cur === v ? ' <span style="margin-left:auto">✓</span>' : ''}</button>`).join(''));
+}
+async function setMsgPrivacy(v){
+  const { error } = await sb.from('profiles').update({ msg_privacy: v }).eq('id', me.id);
+  if (error) { toast('বদলানো যায়নি'); return; }
+  me.msg_privacy = v; profilesCache[me.id] = me;
+  closeSheet(); toast('মেসেজ প্রাইভেসি ঠিক হয়েছে ✓'); renderSettings();
 }
 async function renderBlocks(){
   curView = 'blocks'; renderShell();
