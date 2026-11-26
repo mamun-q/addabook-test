@@ -20,6 +20,8 @@ let notifChannel = null;
 let onlineIds = new Set();        // presence: user ids online right now
 let presenceChannel = null;
 let typingChannel = null;         // per-conversation typing broadcast channel
+let typingTopic = '';
+let typingClearTimer = null;
 let typingHideTimer = null;
 let lastTypingAt = 0;
 let replyTarget = null;           // message object being replied to
@@ -1194,6 +1196,12 @@ function subscribePresence(){
     const changed = next.size !== onlineIds.size || [...next].some(id => !onlineIds.has(id));
     onlineIds = next;
     if (changed && curView === 'chat' && !activeChat) renderChatList();
+    if (activeChat) {
+      let typer = null;
+      const st = presenceChannel.presenceState();
+      for (const k of Object.keys(st)) { if (k === me.id) continue; for (const e of st[k]) { if (e && e.typing === activeChat) { typer = e; break; } } if (typer) break; }
+      if (typer) showTyping(typer.name || 'বন্ধু');
+    }
   }).subscribe(async status => {
     if (status === 'SUBSCRIBED') { try { await presenceChannel.track({ user_id: me.id }); } catch (e) {} }
   });
@@ -2148,12 +2156,15 @@ async function openChat(convId){
       await loadReactions([mid]);
       renderMsgList(false);
     }).subscribe();
-  if (typingChannel) sb.removeChannel(typingChannel);
-  typingChannel = sb.channel('typing-' + convId, { config: { broadcast: { self: false } } })
-    .on('broadcast', { event: 'typing' }, ({ payload }) => {
-      if (!payload || payload.user === me.id || activeChat !== convId) return;
-      showTyping(payload.name || 'বন্ধু');
-    }).subscribe();
+  if (typingChannel && typingTopic !== convId) { sb.removeChannel(typingChannel); typingChannel = null; }
+  if (!typingChannel) {
+    typingTopic = convId;
+    typingChannel = sb.channel('typing-' + convId, { config: { broadcast: { self: false } } })
+      .on('broadcast', { event: 'typing' }, ({ payload }) => {
+        if (!payload || payload.user === me.id || activeChat !== convId) return;
+        showTyping(payload.name || 'বন্ধু');
+      }).subscribe();
+  }
   const inp = $('#msgInput'); if (inp) inp.focus();
 }
 function snippetOf(body){
@@ -2361,9 +2372,14 @@ async function toggleDisappear(){
 /* ---------- typing ---------- */
 function onMsgInput(){
   const now = Date.now();
-  if (!typingChannel || now - lastTypingAt < 2500) return;
+  if (now - lastTypingAt < 2500) return;
   lastTypingAt = now;
-  try { typingChannel.send({ type: 'broadcast', event: 'typing', payload: { user: me.id, name: me.name } }); } catch (e) {}
+  if (typingChannel) { try { typingChannel.send({ type: 'broadcast', event: 'typing', payload: { user: me.id, name: me.name } }); } catch (e) {} }
+  if (presenceChannel && activeChat) {
+    try { presenceChannel.track({ user_id: me.id, name: me.name, typing: activeChat }); } catch (e) {}
+    if (typingClearTimer) clearTimeout(typingClearTimer);
+    typingClearTimer = setTimeout(() => { if (presenceChannel) { try { presenceChannel.track({ user_id: me.id }); } catch (e) {} } }, 3500);
+  }
 }
 function showTyping(name){
   const el = $('#typingLine'); if (!el) return;
