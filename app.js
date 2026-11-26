@@ -2122,7 +2122,7 @@ async function adminToggle(uid, field, cur){
 }
 function adminTokens(uid){
   const u = profilesCache[uid]; if (!u) return;
-  openSheet(`<h3 style="display:flex;align-items:center;gap:7px">${ic('wallet', 18)} কয়েন ঠিক করো</h3>
+  sheet(`<h3 style="display:flex;align-items:center;gap:7px">${ic('wallet', 18)} কয়েন ঠিক করো</h3>
     <p style="font-size:13.5px;color:var(--mut)">${esc(u.name)}-এর এখনকার ব্যালান্স: <b style="color:var(--ink)">${bn(u.tokens || 0)} কয়েন</b></p>
     <input class="field" id="admTokAmt" type="number" min="1" placeholder="কত কয়েন? (যেমন: ৫০)">
     <div style="display:flex;gap:8px">
