@@ -988,8 +988,6 @@ async function submitPost(groupId, pageId){
 }
 
 /* ---------- FEED ---------- */
-const DAILY_QUOTES = ['ছোট ছোট ভালো কাজই বড় মানুষ বানায়।','আজকের হাসিটাই কালকের শক্তি।','বন্ধু মানে সেই, যে কষ্টের দিনেও পাশে থাকে।','নিজের গতকালের চেয়ে আজ একটু ভালো হও।','শেখার কোনো বয়স নেই, থামার কোনো কারণ নেই।','ধৈর্য ধরো — ভালো সময় আসবেই।','অন্যের ভালো দেখে খুশি হতে শেখো।'];
-const WEEK_CHALLENGES = ['📸 সপ্তাহের চ্যালেঞ্জ: তোমার এলাকার সেরা ছবি পোস্ট করো — #আমারএলাকা','🍲 সপ্তাহের চ্যালেঞ্জ: প্রিয় খাবারের ছবি পোস্ট করো — #খাবার','📚 সপ্তাহের চ্যালেঞ্জ: পড়া সেরা বইয়ের কথা লেখো — #বই','🌅 সপ্তাহের চ্যালেঞ্জ: সূর্যোদয় বা সূর্যাস্তের ছবি — #আকাশ','✍️ সপ্তাহের চ্যালেঞ্জ: ৪ লাইনের একটা ছোট কবিতা লেখো — #কবিতা'];
 async function specialBanners(){
   const today = new Date(); const md = String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
   const ids = [...friendIds];
@@ -1012,8 +1010,6 @@ async function specialBanners(){
   const mem = await sb.from('posts').select('id,created_at').eq('user_id', me.id).limit(80);
   const old = (mem.data || []).find(p => { const d = new Date(p.created_at); return d.getFullYear() < today.getFullYear() && String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') === md; });
   if (old) out += `<div class="card" style="background:linear-gradient(120deg,#fffbeb,#fef3c7)"><b>🕰 এই দিনে</b> — তোমার পুরনো একটা পোস্ট আজকের দিনে হয়েছিল<br><button class="btn ghost sm" style="margin-top:8px" onclick="openMemory('${old.id}')">পোস্টটা দেখো</button></div>`;
-  const dayIdx = Math.floor(Date.now() / 864e5);
-  out += `<div class="card" style="text-align:center"><div style="font-size:15px">💡 <i>${esc(DAILY_QUOTES[dayIdx % DAILY_QUOTES.length])}</i></div><small style="color:var(--mut)">${esc(WEEK_CHALLENGES[Math.floor(dayIdx / 7) % WEEK_CHALLENGES.length])}</small></div>`;
   return out;
 }
 function birthdayWish(uid){
