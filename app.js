@@ -2073,6 +2073,37 @@ async function leaveGroup(gid){
 }
 
 /* ---------- CHAT ---------- */
+async function classifyRequests(reqRows, msgs){
+  const out = new Map(); if (!reqRows.length) return out;
+  const senderIds = [...new Set(reqRows.map(r => r.otherId).filter(Boolean))];
+  const orFilter = senderIds.map(id => `user_id.eq.${id},friend_id.eq.${id}`).join(',');
+  const [{ data: frs }, { data: myGm }] = await Promise.all([
+    sb.from('friendships').select('user_id,friend_id').eq('status', 'accepted').or(orFilter),
+    sb.from('group_members').select('group_id').eq('user_id', me.id)
+  ]);
+  const myGroups = new Set((myGm || []).map(g => g.group_id));
+  const senderFriends = {}; senderIds.forEach(id => senderFriends[id] = new Set());
+  (frs || []).forEach(f => { if (senderFriends[f.user_id]) senderFriends[f.user_id].add(f.friend_id); if (senderFriends[f.friend_id]) senderFriends[f.friend_id].add(f.user_id); });
+  const senderGroups = {};
+  await Promise.all(senderIds.map(async id => { const { data } = await sb.from('group_members').select('group_id').eq('user_id', id); senderGroups[id] = new Set((data || []).map(g => g.group_id)); }));
+  const reportCounts = {};
+  await Promise.all(senderIds.map(async id => { const { data } = await sb.rpc('report_count', { p_uid: id }); reportCounts[id] = data || 0; }));
+  reqRows.forEach(r => {
+    const sid = r.otherId; if (!sid) { out.set(r.c.id, 'other'); return; }
+    const mutual = [...(senderFriends[sid] || [])].filter(x => friendIds.has(x)).length;
+    const shared = [...(senderGroups[sid] || [])].some(g => myGroups.has(g));
+    if (mutual > 0 || shared) { out.set(r.c.id, 'known'); return; }
+    const p = prof(sid); let score = 0;
+    const threadMsgs = (msgs || []).filter(m => m.conversation_id === r.c.id && m.sender_id === sid);
+    const first = threadMsgs[threadMsgs.length - 1];
+    if (first && /https?:\/\/|www\./i.test(first.body)) score += 2;
+    if (p && p.created_at && (Date.now() - new Date(p.created_at).getTime()) < 7 * 864e5) score += 2;
+    if (p && !p.avatar_url) score += 1;
+    if ((reportCounts[sid] || 0) >= 3) score += 2;
+    out.set(r.c.id, score >= 3 ? 'spam' : 'other');
+  });
+  return out;
+}
 async function renderChatList(mode = 'main'){
   curView = 'chat'; activeChat = null; renderShell();
   chatListMode = mode;
@@ -2104,7 +2135,7 @@ async function renderChatList(mode = 'main'){
     else { title = 'চ্যাট'; avHtml = avatar(null, 47, 17); }
     return { c, title, avHtml, lm, myRow, otherId, isReq: !!(myRow.requested && otherId && !friendIds.has(otherId)) };
   }).sort((a, b) => ((b.myRow.pinned ? 1 : 0) - (a.myRow.pinned ? 1 : 0)) || (new Date(b.lm?.created_at || b.c.created_at) - new Date(a.lm?.created_at || a.c.created_at)));
-  const rowHtml = ({ c, title, avHtml, lm, myRow, otherId }) => `<button class="chatrow" onclick="openChat('${c.id}')"><span class="avw">${avHtml}${otherId && onlineIds.has(otherId) ? '<span class="ondot"></span>' : ''}</span><span style="flex:1;min-width:0"><b>${myRow.pinned ? ic('pin', 12) + ' ' : ''}${esc(title)}</b><small>${lm ? esc(snippetOf(lm.body)) : 'চ্যাট শুরু করো'}</small></span>${myRow.muted ? `<span style="color:var(--faint);display:inline-flex">${ic('mute', 14)}</span>` : ''}<small style="color:var(--faint);font-size:11px">${lm ? timeAgo(lm.created_at) : ''}</small></button>`;
+  const rowHtml = (r) => { const { c, title, avHtml, lm, myRow, otherId } = r; const masked = mode === 'requests' && lm && (lm.body.startsWith('📎FILE:') || lm.body.startsWith('🎧AUDIO:')); const pv = lm ? (masked ? tx('🔒 মিডিয়া পাঠিয়েছে','🔒 Sent media') : snippetOf(lm.body)) : null; return `<button class="chatrow" style="${r._cls === 'spam' ? 'opacity:.72' : ''}" onclick="openChat('${c.id}')"><span class="avw">${avHtml}${otherId && onlineIds.has(otherId) ? '<span class="ondot"></span>' : ''}</span><span style="flex:1;min-width:0"><b>${myRow.pinned ? ic('pin', 12) + ' ' : ''}${esc(title)}</b><small>${pv ? esc(pv) : 'চ্যাট শুরু করো'}</small></span>${myRow.muted ? `<span style="color:var(--faint);display:inline-flex">${ic('mute', 14)}</span>` : ''}<small style="color:var(--faint);font-size:11px">${lm ? timeAgo(lm.created_at) : ''}</small></button>`; };
   const hiddenDupes = new Set();
   if (mode === 'main') {
     const byPartner = {};
@@ -2112,11 +2143,23 @@ async function renderChatList(mode = 'main'){
     Object.values(byPartner).forEach(list => { if (list.length > 1) { const keeper = list.find(r => r.lm) || list[0]; list.forEach(r => { if (r !== keeper && !r.lm) hiddenDupes.add(r.c.id); }); } });
   }
   const shown = rows.filter(r => !hiddenDupes.has(r.c.id) && (mode === 'archived' ? !!r.myRow.archived : mode === 'restricted' ? !!r.myRow.restricted : mode === 'requests' ? (r.isReq && !r.myRow.archived) : (!r.myRow.archived && !r.myRow.restricted && !r.isReq)));
-  let html = shown.length ? shown.map(rowHtml).join('') : '<div class="empty">এখানে কিছু নেই</div>';
+  let html;
+  let reqCls = new Map();
+  const reqRowsAll = rows.filter(r => r.isReq && !r.myRow.archived);
+  if (mode === 'requests' || (mode === 'main' && reqRowsAll.length)) { try { reqCls = await classifyRequests(reqRowsAll, msgs); } catch (e) { reqCls = new Map(); } }
+  if (mode === 'requests') {
+    shown.forEach(r => r._cls = reqCls.get(r.c.id) || 'other');
+    const gK = shown.filter(r => r._cls === 'known'), gO = shown.filter(r => r._cls === 'other'), gS = shown.filter(r => r._cls === 'spam');
+    const multi = [gK, gO, gS].filter(g => g.length).length > 1;
+    const sec = (g, t) => g.length ? (multi ? `<div style="padding:10px 16px 2px;font-size:12px;font-weight:800;color:var(--faint);letter-spacing:.3px">${t}</div>` : '') + g.map(rowHtml).join('') : '';
+    html = (sec(gK, tx('চিনতে পারো', 'You may know')) + sec(gO, tx('অন্যান্য রিকুয়েস্ট', 'Other requests')) + sec(gS, tx('স্প্যাম', 'Spam'))) || '<div class="empty">এখানে কিছু নেই</div>';
+  } else {
+    html = shown.length ? shown.map(rowHtml).join('') : '<div class="empty">এখানে কিছু নেই</div>';
+  }
   if (mode === 'main') {
     const nArch = rows.filter(r => r.myRow.archived).length, nRestr = rows.filter(r => r.myRow.restricted).length;
     html += `<button class="chatfoot" onclick="renderChatList('archived')">${ic('archive', 17)} আর্কাইভ করা চ্যাট${nArch ? `<span class="pill" style="margin-left:auto">${bn(nArch)}</span>` : ''}</button>`;
-    const nReq = rows.filter(r => r.isReq && !r.myRow.archived).length;
+    const nReq = reqRowsAll.filter(r => (reqCls.get(r.c.id) || 'other') !== 'spam').length;
     html += `<button class="chatfoot" onclick="renderChatList('requests')">${ic('msg', 17)} মেসেজ রিকুয়েস্ট${nReq ? `<span class="pill" style="margin-left:auto">${bn(nReq)}</span>` : ''}</button>`;
     html += `<button class="chatfoot" onclick="renderChatList('restricted')">${ic('eyeOff', 17)} রেস্ট্রিক্ট করা চ্যাট${nRestr ? `<span class="pill" style="margin-left:auto">${bn(nRestr)}</span>` : ''}</button>`;
   }
@@ -2756,6 +2799,7 @@ async function acceptRequest(convId){
   if (error) { toast('করা যায়নি'); return; }
   if (chatMeta && chatMeta.myRow) { chatMeta.myRow.requested = false; chatMeta.isReq = false; }
   const rb = $('#reqBar'); if (rb) rb.remove();
+  if (typeof renderMsgs === 'function') renderMsgs();
   if (!me.hide_reads) { const nowIso = new Date().toISOString(); sb.from('conversation_members').update({ last_read_at: nowIso }).eq('conversation_id', convId).eq('user_id', me.id).then(() => {}); if (chatMeta && chatMeta.myRow) chatMeta.myRow.last_read_at = nowIso; }
   toast('রিকুয়েস্ট গ্রহণ করা হয়েছে ✓');
 }
