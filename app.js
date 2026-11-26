@@ -950,6 +950,8 @@ function openComposer(groupId = null, pageId = null){
       <button class="btn" style="flex:2" onclick="submitPost(${groupId ? `'${groupId}'` : 'null'},${pageId ? `'${pageId}'` : 'null'})">পোস্ট করো</button>
     </div>`);
   $('#postBody').focus();
+  const pa = document.getElementById('postAudience');
+  if (pa) pa.value = localStorage.getItem('adda-def-aud') || 'public';
 }
 async function makeCollage(files){
   const imgs = await Promise.all([...files].slice(0, 4).map(f => new Promise(res => { const im = new Image(); im.onload = () => res(im); im.src = URL.createObjectURL(f); })));
@@ -1018,6 +1020,11 @@ function birthdayWish(uid){
   const p = profilesCache[uid];
   openComposer();
   setTimeout(() => { const t = document.getElementById('postBody'); if (t) t.value = `শুভ জন্মদিন ${p ? p.name : ''} 🎂🎉 অনেক অনেক শুভেচ্ছা!`; }, 60);
+}
+async function viewPost(postId){
+  const { data } = await sb.from('posts').select('*').eq('id', postId).single();
+  if (!data) return;
+  sheet((await fetchPostsByIds([data])).map(postCard).join(''));
 }
 async function openMemory(postId){
   const { data } = await sb.from('posts').select('*').eq('id', postId).single();
@@ -1229,11 +1236,12 @@ async function renderProfile(uid){
   profilesCache[uid] = p; const mine = uid === me.id;
   if (!mine) sb.from('profile_views').upsert({ viewer: me.id, profile: uid, created_at: new Date().toISOString() }, { onConflict: 'viewer,profile' }).then(() => {});
   const [friendsRes, postsRes, followersRes] = await Promise.all([
-    sb.from('friendships').select('id').eq('status', 'accepted').or(`requester.eq.${uid},addressee.eq.${uid}`),
+    sb.from('friendships').select('requester,addressee').eq('status', 'accepted').or(`requester.eq.${uid},addressee.eq.${uid}`),
     sb.from('posts').select('id', { count: 'exact', head: true }).eq('user_id', uid),
     sb.from('follows').select('follower').eq('following', uid)
   ]);
   const friendCount = (friendsRes.data || []).length;
+  const theirFriendIds = (friendsRes.data || []).map(r => r.requester === uid ? r.addressee : r.requester);
   view().innerHTML = `<div class="view">
     <div class="cover" ${p.cover_url ? `style="background-image:url('${esc(p.cover_url)}')"` : (p.theme ? `style="background:${(PROFILE_THEMES.find(t => t[0] === p.theme) || [])[2] || ''}"` : '')}></div>
     <div class="prof">
@@ -1258,11 +1266,26 @@ async function renderProfile(uid){
         <button class="btn ghost" onclick="askAnon('${uid}')">🙈 বেনামে প্রশ্ন</button>`}
       </div></div>
     <div class="stats"><div><b>${bn(postsRes.count || 0)}</b><small>পোস্ট</small></div><div><b>${bn(friendCount)}</b><small>বন্ধু</small></div><div><b>${bn((followersRes.data || []).length)}</b><small>ফলোয়ার</small></div></div>
+    <div class="seclabel">পরিচিতি</div>
+    <div class="card" style="padding:12px 15px">
+      ${p.bio ? `<p style="font-size:14px;line-height:1.65;margin-bottom:8px">${esc(p.bio)}</p>` : ''}
+      ${[['💼', p.work], ['🎓', p.education], ['📍 থাকেন', p.city], ['🏠 নিজ শহর', p.hometown], ['❤️', p.relationship], ['🎂 জন্মদিন', p.birthday]].filter(r => r[1]).map(r => `<div style="font-size:13.5px;padding:3px 0;color:var(--ink2)">${r[0]} ${esc(r[1])}</div>`).join('')}
+      <div style="font-size:13.5px;padding:3px 0;color:var(--ink2)">📅 যোগ দিয়েছেন ${new Date(p.created_at).toLocaleDateString('bn-BD', { month: 'long', year: 'numeric' })}</div>
+      ${mine && !p.work && !p.education && !p.hometown ? `<button class="btn ghost sm" style="margin-top:8px" onclick="editProfile()">+ পরিচিতি যোগ করো</button>` : ''}
+    </div>
+    <div class="seclabel">ছবি</div><div id="profPhotos" style="padding:0 12px"><div class="empty">লোড হচ্ছে...</div></div>
+    <div class="seclabel">বন্ধুরা · ${bn(friendCount)}</div><div id="profFriends" style="padding:0 12px"><div class="empty">লোড হচ্ছে...</div></div>
     <div class="seclabel">পোস্টসমূহ</div><div id="profPosts"><div class="empty">লোড হচ্ছে...</div></div></div>`;
   const posts = await fetchPosts({ authorId: uid });
   posts.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
   const pp = document.getElementById('profPosts');
   if (pp) pp.innerHTML = posts.length ? posts.map(postCard).join('') : '<div class="card empty">এখনো কোনো পোস্ট নেই</div>';
+  const photoPosts = posts.filter(x => x.image_url).slice(0, 9);
+  const ph = document.getElementById('profPhotos');
+  if (ph) ph.innerHTML = photoPosts.length ? `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">${photoPosts.map(x => `<img src="${esc(x.image_url)}" onclick="viewPost('${x.id}')" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:12px;cursor:pointer">`).join('')}</div>` : '<div class="card empty" style="margin:0">কোনো ছবির পোস্ট নেই</div>';
+  await cacheProfiles(theirFriendIds.slice(0, 9));
+  const pf = document.getElementById('profFriends');
+  if (pf) pf.innerHTML = theirFriendIds.length ? `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">${theirFriendIds.slice(0, 9).map(fid => { const fp = prof(fid); return `<button onclick="goProfile('${fid}')" style="background:var(--card);border:1px solid var(--line2);border-radius:14px;padding:10px 4px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:5px">${avatar(fp, 44, 16)}<small style="font-size:11.5px;font-weight:600;color:var(--ink)">${esc(fp.name.split(' ')[0])}</small></button>`; }).join('')}</div>` : '<div class="card empty" style="margin:0">এখনো কোনো বন্ধু নেই</div>';
   sb.rpc('report_count', { p_uid: uid }).then(({ data }) => {
     const el = document.getElementById('scamLabel');
     if (el && typeof data === 'number' && data >= 3) el.innerHTML = '<span style="display:inline-block;background:#FEF2F2;color:#B91C1C;border:1px solid #FECACA;border-radius:99px;padding:3px 10px;font-size:12px;font-weight:700;margin-top:6px">⚠️ সতর্কতা: এই অ্যাকাউন্টের বিরুদ্ধে একাধিক রিপোর্ট আছে — লেনদেনে সাবধান</span>';
@@ -1305,6 +1328,10 @@ function editProfile(){
     <input class="field" id="epCity" value="${esc(me.city || '')}" placeholder="শহর (যেমন: ঢাকা)">
     <label style="display:block;font-size:13px;color:var(--mut);margin:2px 0 4px">🎂 জন্মদিন <input class="field" type="date" id="epBirthday" value="${esc(me.birthday || '')}" style="margin:0"></label>
     <input class="field" id="epEmergency" value="${esc(me.emergency || '')}" placeholder="জরুরি যোগাযোগ (শুধু তুমিই দেখবে)">
+    <input class="field" id="epWork" value="${esc(me.work || '')}" placeholder="💼 কাজ / পেশা (যেমন: ছাত্র, শিক্ষক)">
+    <input class="field" id="epEdu" value="${esc(me.education || '')}" placeholder="🎓 পড়াশোনা (যেমন: ঢাকা বিশ্ববিদ্যালয়)">
+    <input class="field" id="epHome" value="${esc(me.hometown || '')}" placeholder="🏠 নিজ শহর (যেমন: রাজশাহী)">
+    <select class="field" id="epRel"><option value="">❤️ সম্পর্কের অবস্থা (ঐচ্ছিক)</option>${['অবিবাহিত', 'সম্পর্কে আছি', 'বিবাহিত', 'জটিল'].map(r => `<option ${me.relationship === r ? 'selected' : ''}>${r}</option>`).join('')}</select>
     <textarea class="field" id="epBio" placeholder="নিজের সম্পর্কে দু-এক লাইন">${esc(me.bio || '')}</textarea>
     <label style="display:block;font-size:13.5px;color:var(--mut);margin:2px 0 4px">প্রোফাইল ছবি <input type="file" id="epAvatar" accept="image/*" style="font-size:12px"></label>
     <label style="display:block;font-size:13.5px;color:var(--mut);margin:6px 0 12px">কভার ছবি <input type="file" id="epCover" accept="image/*" style="font-size:12px"></label>
@@ -1313,7 +1340,7 @@ function editProfile(){
 async function saveProfile(){
   const uname = $('#epUsername').value.trim().toLowerCase();
   if (uname && !/^[a-z0-9._]{3,30}$/.test(uname)) { toast('ইউজারনেমে শুধু ইংরেজি ছোট হাতের অক্ষর, সংখ্যা, . আর _ (৩-৩০)'); return; }
-  const upd = { name: $('#epName').value.trim() || me.name, city: $('#epCity').value.trim(), bio: $('#epBio').value.trim(), username: uname || null, birthday: $('#epBirthday').value || null, emergency: $('#epEmergency').value.trim() };
+  const upd = { name: $('#epName').value.trim() || me.name, city: $('#epCity').value.trim(), bio: $('#epBio').value.trim(), username: uname || null, birthday: $('#epBirthday').value || null, emergency: $('#epEmergency').value.trim(), work: $('#epWork').value.trim(), education: $('#epEdu').value.trim(), hometown: $('#epHome').value.trim(), relationship: $('#epRel').value };
   const af = $('#epAvatar').files[0]; if (af) upd.avatar_url = await uploadImage(af);
   const cf = $('#epCover').files[0]; if (cf) upd.cover_url = await uploadImage(cf);
   const { data, error } = await sb.from('profiles').update(upd).eq('id', me.id).select().single();
@@ -1554,6 +1581,11 @@ async function renderSettings(){
   const tg = (key, label) => `<button class="menu-item" onclick="toggleLocal('${key}','${label}')">${label}<span style="margin-left:auto" class="pill">${localStorage.getItem(key) === '1' ? 'চালু' : 'বন্ধ'}</span></button>`;
   view().innerHTML = `<div class="view">
     <div style="padding:14px 16px 0;font-size:18px;font-weight:800">সেটিংস</div>
+    <div class="card" style="display:flex;gap:12px;align-items:center;background:linear-gradient(120deg,#EEF2FF,#F5F3FF)">
+      ${avatar(me, 52, 19)}
+      <div style="flex:1;min-width:0"><b style="font-size:16.5px">${esc(me.name)}</b>${badges(me)}<br><small style="color:var(--mut)">${me.username ? '@' + esc(me.username) + ' · ' : ''}🪙 ${bn(me.tokens)} টোকেন · 🔥 ${bn(me.login_streak || 0)} দিনের স্ট্রিক</small></div>
+      <button class="btn sm" onclick="renderProfile('${me.id}')">প্রোফাইল</button>
+    </div>
     <div class="seclabel">আমার জিনিস</div>
     <div class="card" style="padding:6px 15px">
       <button class="menu-item" onclick="editProfile()">✏️ প্রোফাইল এডিট</button>
@@ -1582,6 +1614,14 @@ async function renderSettings(){
       <button class="menu-item" onclick="go('gov')">🏛 সরকারি সেবা ও কর্নার</button>
       ${localStorage.getItem('adda-kid') === '1' ? '' : `<button class="menu-item" onclick="go('dating')">💘 মনের মানুষ</button>`}
     </div>
+    <div class="seclabel">নিরাপত্তা ও প্রাইভেসি</div>
+    <div class="card" style="padding:6px 15px">
+      <button class="menu-item" onclick="changePasswordSheet()">🔑 পাসওয়ার্ড বদলাও</button>
+      <button class="menu-item" onclick="defAudSheet()">🎯 নতুন পোস্ট কে দেখবে (ডিফল্ট) <span style="margin-left:auto" class="pill">${{ public: 'সবাই', friends: 'বন্ধুরা', close: 'কাছের বন্ধুরা', supporters: 'ফলোয়াররা' }[localStorage.getItem('adda-def-aud') || 'public']}</span></button>
+      <button class="menu-item" onclick="renderBlocks()">🚫 ব্লক করা মানুষ</button>
+      <button class="menu-item" onclick="aboutSheet()">ℹ️ আড্ডাBook সম্পর্কে</button>
+      <button class="menu-item" onclick="logoutEverywhere()">📵 সব ডিভাইস থেকে লগ আউট</button>
+    </div>
     <div class="seclabel">সুবিধা ও নিরাপত্তা</div>
     <div class="card" style="padding:6px 15px">
       <button class="menu-item" onclick="toggleTheme();toast('থিম বদলানো হয়েছে')">🌙 ডার্ক / লাইট থিম</button>
@@ -1592,6 +1632,53 @@ async function renderSettings(){
       <button class="menu-item" style="color:var(--danger)" onclick="doLogout()">🚪 লগ আউট</button>
     </div>
     <p style="text-align:center;color:var(--faint);font-size:11.5px;padding:16px 0 4px">আড্ডাBook · LIMON Labs</p></div>`;
+}
+function changePasswordSheet(){
+  sheet(`<h3>🔑 পাসওয়ার্ড বদলাও</h3>
+    <input class="field" type="password" id="npPass" placeholder="নতুন পাসওয়ার্ড (কমপক্ষে ৬ অক্ষর)">
+    <input class="field" type="password" id="npPass2" placeholder="আবার লেখো">
+    <button class="btn block" onclick="doChangePassword()">বদলে ফেলো</button>`);
+}
+async function doChangePassword(){
+  const a = document.getElementById('npPass').value, b = document.getElementById('npPass2').value;
+  if (a.length < 6) { toast('পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে'); return; }
+  if (a !== b) { toast('দুটো পাসওয়ার্ড মিলছে না'); return; }
+  const { error } = await sb.auth.updateUser({ password: a });
+  if (error) { toast('বদলানো যায়নি — আবার লগইন করে চেষ্টা করো'); return; }
+  closeSheet(); toast('পাসওয়ার্ড বদলানো হয়েছে 🔑');
+}
+async function logoutEverywhere(){
+  await sb.auth.signOut({ scope: 'global' });
+  location.reload();
+}
+function defAudSheet(){
+  const cur = localStorage.getItem('adda-def-aud') || 'public';
+  const opts = [['public', '🌍 সবাই'], ['friends', '👥 শুধু বন্ধুরা'], ['close', '💚 কাছের বন্ধুরা'], ['supporters', '⭐ ফলোয়াররা']];
+  sheet(`<h3>🎯 নতুন পোস্ট কে দেখবে?</h3><p style="font-size:13px;color:var(--mut);margin-bottom:10px">পোস্ট করার সময় এই অপশনটা আগেই বেছে থাকবে — চাইলে পোস্টের সময় বদলাতেও পারবে।</p>` +
+    opts.map(([v, t]) => `<button class="menu-item" onclick="setDefAud('${v}')">${t}${cur === v ? ' <span style="margin-left:auto">✓</span>' : ''}</button>`).join(''));
+}
+function setDefAud(v){
+  localStorage.setItem('adda-def-aud', v);
+  closeSheet(); toast('ডিফল্ট ঠিক হয়েছে ✓'); renderSettings();
+}
+async function renderBlocks(){
+  curView = 'blocks'; renderShell();
+  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">🚫 ব্লক করা মানুষ</div><div class="card" id="blockList" style="padding:6px 15px"><div class="empty">লোড হচ্ছে...</div></div></div>`;
+  const { data } = await sb.from('blocks').select('*').eq('blocker', me.id);
+  await cacheProfiles((data || []).map(b => b.blocked));
+  const el = document.getElementById('blockList');
+  if (el) el.innerHTML = (data || []).length ? data.map(b => userRow(prof(b.blocked), `<button class="btn ghost sm" onclick="unblockUser('${b.blocked}')">আনব্লক</button>`)).join('') : '<div class="empty">কাউকে ব্লক করোনি</div>';
+}
+async function unblockUser(uid){
+  await sb.from('blocks').delete().eq('blocker', me.id).eq('blocked', uid);
+  blockedIds.delete(uid);
+  toast('আনব্লক করা হয়েছে'); renderBlocks();
+}
+function aboutSheet(){
+  sheet(`<h3>ℹ️ আড্ডাBook সম্পর্কে</h3>
+    <p style="font-size:14px;line-height:1.75">আড্ডাBook — বন্ধুদের সাথে প্রতিদিনের আড্ডার নিজের জায়গা। বানিয়েছে <b>LIMON Labs</b>।<br><br>
+    🛡 <b>নিরাপত্তা টিপস:</b> পাসওয়ার্ড কারো সাথে শেয়ার করো না। কেনাবেচায় অগ্রিম টাকা পাঠানোর আগে যাচাই করো। সন্দেহজনক পোস্টে রিপোর্ট করো।<br><br>
+    📌 সংস্করণ: v2 (২০২৬)</p>`);
 }
 function toggleLang(){
   const en = localStorage.getItem('adda-lang') === 'en';
