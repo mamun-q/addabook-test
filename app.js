@@ -1900,7 +1900,6 @@ async function renderProfile(uid){
     <div class="stats"><div><b>${bn(postsRes.count || 0)}</b><small>পোস্ট</small></div><div><b>${bn(friendCount)}</b><small>বন্ধু</small></div><div><b>${bn((followersRes.data || []).length)}</b><small>ফলোয়ার</small></div></div>
     <div class="seclabel">পরিচিতি</div>
     <div class="card" style="padding:12px 15px">
-      ${p.bio ? `<p style="font-size:14px;line-height:1.65;margin-bottom:8px">${esc(p.bio)}</p>` : ''}
       ${[['briefcase', '', p.work, 'work'], ['grad', '', p.education, 'education'], ['pinLoc', 'থাকেন', p.city, 'city'], ['home', 'নিজ শহর', p.hometown, 'hometown'], ['heart', '', p.relationship, 'relationship'], ['calendar', 'জন্মদিন', p.birthday, 'birthday'], ['user', '', p.gender, 'gender'], ['user', 'Pronouns', p.pronouns, 'gender'], ['type', 'ভাষা', p.languages, 'languages'], ['palette', 'শখ', p.hobbies, 'hobbies']].filter(r => r[2] && fieldVisible(p, r[3], isFriendOf)).map(r => `<div style="font-size:13.5px;padding:3px 0;color:var(--ink2);display:flex;align-items:center;gap:7px"><span style="color:var(--acc);display:inline-flex">${ic(r[0], 15)}</span><span>${r[1] ? r[1] + ' ' : ''}${esc(r[2])}</span></div>`).join('')}
       ${p.website && fieldVisible(p, 'website', isFriendOf) ? p.website.split('\n').map(w => w.trim()).filter(Boolean).slice(0, 5).map(w => `<div style="font-size:13.5px;padding:3px 0;display:flex;align-items:center;gap:7px"><span style="color:var(--acc);display:inline-flex">${ic('globe', 15)}</span><a class="tag" target="_blank" rel="noopener" href="${esc(/^https?:\/\//i.test(w) ? w : 'https://' + w)}">${esc(w)}</a></div>`).join('') : ''}
       <div style="font-size:13.5px;padding:3px 0;color:var(--ink2)">📅 যোগ দিয়েছেন ${new Date(p.created_at).toLocaleDateString(LANG === 'en' ? 'en-US' : 'bn-BD', { month: 'long', year: 'numeric' })}</div>
@@ -1962,10 +1961,6 @@ function toggleTheme(){
   const dark = document.documentElement.classList.toggle('dark');
   localStorage.setItem('adda-theme', dark ? 'dark' : 'light');
 }
-function pvSel(key){
-  const cur = (me.field_privacy || {})[key] || 'public';
-  return `<select id="pv_${key}" class="field" style="width:112px;flex:none;font-size:12px;padding-left:6px;padding-right:6px" title="কে দেখবে">${[['public', '🌐 সবাই'], ['friends', '👥 বন্ধুরা'], ['me', '🔒 শুধু আমি']].map(([v, l]) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
-}
 const FAM_RELS = ['বাবা', 'মা', 'ভাই', 'বোন', 'স্বামী', 'স্ত্রী', 'ছেলে', 'মেয়ে', 'দাদা', 'দাদি', 'নানা', 'নানি', 'চাচা', 'মামা', 'খালা', 'ফুফু', 'অন্যান্য আত্মীয়'];
 async function loadEpFamily(){
   const box = $('#epFamily'); if (!box) return;
@@ -1994,7 +1989,7 @@ async function famSend(uid){
   const rel = $('#famRel').value;
   const { error } = await sb.from('family_links').insert({ from_id: me.id, to_id: uid, from_relation: rel });
   if (error) { toast('পাঠানো যায়নি — হয়তো আগেই পাঠানো আছে'); return; }
-  notify(uid, 'family'); closeSheet(); toast('পরিবারের অনুরোধ পাঠানো হয়েছে ✓'); editProfile();
+  notify(uid, 'family'); closeSheet(); toast('পরিবারের অনুরোধ পাঠানো হয়েছে ✓'); familySheet();
 }
 function famAcceptSheet(id){
   sheet(`<h3>${ic('users', 18)} সম্পর্ক নিশ্চিত করো</h3>
@@ -2006,52 +2001,125 @@ async function famAccept(id){
   const rel = $('#famRelBack').value;
   const { error } = await sb.from('family_links').update({ status: 'accepted', to_relation: rel }).eq('id', id);
   if (error) { toast('করা যায়নি'); return; }
-  closeSheet(); toast('পরিবারে যোগ হয়েছে ✓'); editProfile();
+  closeSheet(); toast('পরিবারে যোগ হয়েছে ✓'); familySheet();
 }
 async function famRemove(id){
   const { error } = await sb.from('family_links').delete().eq('id', id);
   if (error) { toast('করা যায়নি'); return; }
-  toast('সরানো হয়েছে'); editProfile();
+  toast('সরানো হয়েছে'); if (document.getElementById('epFamily')) loadEpFamily();
 }
-function editProfile(){
-  sheet(`<h3>প্রোফাইল এডিট</h3>
-    <input class="field" id="epName" value="${esc(me.name)}" placeholder="নাম">
-    <input class="field" id="epUsername" value="${esc(me.username || '')}" placeholder="ইউজারনেম (ইংরেজি ছোট হাতের, যেমন: limon.bd)">
-    <div style="display:flex;gap:8px;align-items:flex-start"><input class="field" id="epCity" value="${esc(me.city || '')}" placeholder="শহর (যেমন: ঢাকা)" style="flex:1">${pvSel('city')}</div>
-    <div style="display:flex;gap:8px;align-items:flex-end"><label style="flex:1;font-size:13px;color:var(--mut)">জন্মদিন <input class="field" type="date" id="epBirthday" value="${esc(me.birthday || '')}" style="margin:0"></label>${pvSel('birthday')}</div>
-    <input class="field" id="epEmergency" value="${esc(me.emergency || '')}" placeholder="জরুরি যোগাযোগ (শুধু তুমিই দেখবে)">
-    <div style="display:flex;gap:8px;align-items:flex-start"><input class="field" id="epWork" value="${esc(me.work || '')}" placeholder="কাজ / পেশা (যেমন: ছাত্র, শিক্ষক)" style="flex:1">${pvSel('work')}</div>
-    <div style="display:flex;gap:8px;align-items:flex-start"><input class="field" id="epEdu" value="${esc(me.education || '')}" placeholder="পড়াশোনা (যেমন: ঢাকা বিশ্ববিদ্যালয়)" style="flex:1">${pvSel('education')}</div>
-    <div style="display:flex;gap:8px;align-items:flex-start"><input class="field" id="epHome" value="${esc(me.hometown || '')}" placeholder="নিজ শহর (যেমন: রাজশাহী)" style="flex:1">${pvSel('hometown')}</div>
-    <div style="display:flex;gap:8px;align-items:flex-start"><select class="field" id="epRel" style="flex:1"><option value="">সম্পর্কের অবস্থা (ঐচ্ছিক)</option>${['অবিবাহিত', 'সম্পর্কে আছি', 'বিবাহিত', 'জটিল'].map(r => `<option ${me.relationship === r ? 'selected' : ''}>${r}</option>`).join('')}</select>${pvSel('relationship')}</div>
-    <div style="display:flex;gap:8px;align-items:flex-start"><select class="field" id="epGender" style="flex:1"><option value="">লিঙ্গ (ঐচ্ছিক)</option>${['পুরুষ', 'মহিলা', 'অন্যান্য'].map(g => `<option ${me.gender === g ? 'selected' : ''}>${g}</option>`).join('')}</select>${pvSel('gender')}</div>
-    <div style="display:flex;gap:8px;align-items:flex-start"><input class="field" id="epNick" value="${esc(me.nickname || '')}" placeholder="ডাকনাম (যেমন: লিমন)" style="flex:1">${pvSel('nickname')}</div>
-    <div style="display:flex;gap:8px;align-items:flex-start"><input class="field" id="epLang" value="${esc(me.languages || '')}" placeholder="ভাষা (যেমন: বাংলা, English)" style="flex:1">${pvSel('languages')}</div>
-    <div style="display:flex;gap:8px;align-items:flex-start"><textarea class="field" id="epWeb" rows="3" style="flex:1" placeholder="লিঙ্কসমূহ — প্রতি লাইনে একটা (সর্বোচ্চ ৫টা)">${esc(me.website || '')}</textarea>${pvSel('website')}</div>
-    <div style="display:flex;gap:8px;align-items:flex-start"><input class="field" id="epHobby" value="${esc(me.hobbies || '')}" placeholder="শখ (যেমন: বই পড়া, ফুটবল, গান)" style="flex:1">${pvSel('hobbies')}</div>
-    <input class="field" id="epQuote" value="${esc(me.quote || '')}" placeholder="পছন্দের উক্তি">
-    <input class="field" id="epFeatured" value="${esc(me.featured || '')}" maxlength="150" placeholder="Pinned details — এক লাইনে তোমার পরিচিতি">
-    <select class="field" id="epCategory"><option value="">প্রোফাইল ক্যাটাগরি (ঐচ্ছিক)</option>${['শিক্ষার্থী', 'শিক্ষক', 'ডিজিটাল ক্রিয়েটর', 'ফ্রিল্যান্সার', 'ব্যবসায়ী', 'চাকরিজীবী', 'কৃষক', 'অন্যান্য'].map(c => `<option ${me.category === c ? 'selected' : ''}>${c}</option>`).join('')}</select>
-    <input class="field" id="epPronouns" value="${esc(me.pronouns || '')}" placeholder="Pronouns (যেমন: he/him, she/her)">
-    <textarea class="field" id="epBio" placeholder="নিজের সম্পর্কে দু-এক লাইন">${esc(me.bio || '')}</textarea>
-    <label style="display:block;font-size:13.5px;color:var(--mut);margin:2px 0 4px">প্রোফাইল ছবি <input type="file" id="epAvatar" accept="image/*" style="font-size:12px"></label>
-    <label style="display:block;font-size:13.5px;color:var(--mut);margin:6px 0 12px">কভার ছবি <input type="file" id="epCover" accept="image/*" style="font-size:12px"></label>
-    <div class="seclabel" style="margin:14px 0 4px">পরিবার</div>
-    <div id="epFamily"><p style="font-size:13px;color:var(--mut)">লোড হচ্ছে...</p></div>
-    <button class="btn ghost block" style="margin:6px 0 12px" onclick="famAddSheet()">+ পরিবারের সদস্য যোগ করো</button>
-    <button class="btn block" onclick="saveProfile()">সংরক্ষণ করো</button>`);
-  loadEpFamily();
+const EP_EDITS = {
+  name: { t: 'নাম', type: 'text', get: () => me.name, set: v => ({ name: v || me.name }) },
+  username: { t: 'ইউজারনেম', type: 'text', hint: 'ইংরেজি ছোট হাতের, সংখ্যা, . আর _ (৩-৩০)', get: () => me.username || '', valid: v => !v || /^[a-z0-9._]{3,30}$/.test(v.toLowerCase()) || 'ইউজারনেম ঠিক নেই — আবার দেখো', set: v => ({ username: v.toLowerCase() || null }) },
+  bio: { t: 'বায়ো', type: 'textarea', get: () => me.bio || '', set: v => ({ bio: v }) },
+  featured: { t: 'Pinned details', type: 'text', max: 150, get: () => me.featured || '', set: v => ({ featured: v }) },
+  category: { t: 'ক্যাটাগরি', type: 'select', opts: ['', 'শিক্ষার্থী', 'শিক্ষক', 'ডিজিটাল ক্রিয়েটর', 'ফ্রিল্যান্সার', 'ব্যবসায়ী', 'চাকরিজীবী', 'কৃষক', 'অন্যান্য'], get: () => me.category || '', set: v => ({ category: v }) },
+  work: { t: 'কাজ / পেশা', type: 'text', aud: 'work', get: () => me.work || '', set: v => ({ work: v }) },
+  education: { t: 'পড়াশোনা', type: 'text', aud: 'education', get: () => me.education || '', set: v => ({ education: v }) },
+  city: { t: 'শহর', type: 'text', aud: 'city', get: () => me.city || '', set: v => ({ city: v }) },
+  hometown: { t: 'নিজ শহর', type: 'text', aud: 'hometown', get: () => me.hometown || '', set: v => ({ hometown: v }) },
+  birthday: { t: 'জন্মদিন', type: 'date', aud: 'birthday', get: () => me.birthday || '', set: v => ({ birthday: v || null }) },
+  relationship: { t: 'সম্পর্কের অবস্থা', type: 'select', opts: ['', 'অবিবাহিত', 'সম্পর্কে আছি', 'বিবাহিত', 'জটিল'], aud: 'relationship', get: () => me.relationship || '', set: v => ({ relationship: v }) },
+  gender: { t: 'লিঙ্গ', type: 'select', opts: ['', 'পুরুষ', 'মহিলা', 'অন্যান্য'], aud: 'gender', pronouns: true, get: () => me.gender || '', set: v => ({ gender: v }) },
+  languages: { t: 'ভাষা', type: 'text', aud: 'languages', get: () => me.languages || '', set: v => ({ languages: v }) },
+  hobbies: { t: 'শখ', type: 'text', aud: 'hobbies', get: () => me.hobbies || '', set: v => ({ hobbies: v }) },
+  nickname: { t: 'ডাকনাম', type: 'text', aud: 'nickname', get: () => me.nickname || '', set: v => ({ nickname: v }) },
+  quote: { t: 'পছন্দের উক্তি', type: 'text', get: () => me.quote || '', set: v => ({ quote: v }) },
+  emergency: { t: 'জরুরি যোগাযোগ', type: 'text', hint: 'এটা শুধু তুমিই দেখবে', get: () => me.emergency || '', set: v => ({ emergency: v }) },
+  website: { t: 'লিঙ্কসমূহ', type: 'textarea', aud: 'website', hint: 'প্রতি লাইনে একটা লিঙ্ক (সর্বোচ্চ ৫টা)', get: () => me.website || '', set: v => ({ website: v.split('\n').map(x => x.trim()).filter(Boolean).slice(0, 5).join('\n') }) }
+};
+function epEdit(key){
+  const c = EP_EDITS[key]; if (!c) return;
+  const cur = c.get();
+  const input = c.type === 'textarea' ? `<textarea class="field" id="epf" rows="3">${esc(cur)}</textarea>`
+    : c.type === 'select' ? `<select class="field" id="epf">${c.opts.map(o => `<option value="${esc(o)}" ${o === cur ? 'selected' : ''}>${o || c.t + ' (ঐচ্ছিক)'}</option>`).join('')}</select>`
+    : `<input class="field" id="epf" type="${c.type === 'date' ? 'date' : 'text'}" value="${esc(cur)}" ${c.max ? `maxlength="${c.max}"` : ''}>`;
+  sheet(`<h3>${ic('edit', 18)} ${c.t}</h3>
+    ${input}
+    ${c.pronouns ? `<input class="field" id="epfPron" value="${esc(me.pronouns || '')}" placeholder="Pronouns (যেমন: he/him, she/her)">` : ''}
+    ${c.hint ? `<p style="font-size:12px;color:var(--mut);margin:-4px 0 8px">${c.hint}</p>` : ''}
+    ${c.aud ? `<label style="display:block;font-size:13px;color:var(--mut);margin:2px 0 4px">কে দেখবে</label><select class="field" id="epAud">${[['public', '🌐 সবাই'], ['friends', '👥 বন্ধুরা'], ['me', '🔒 শুধু আমি']].map(([v, l]) => `<option value="${v}" ${((me.field_privacy || {})[c.aud] || 'public') === v ? 'selected' : ''}>${l}</option>`).join('')}</select>` : ''}
+    <button class="btn block" onclick="epSave('${key}')">সংরক্ষণ করো</button>`);
 }
-async function saveProfile(){
-  const uname = $('#epUsername').value.trim().toLowerCase();
-  if (uname && !/^[a-z0-9._]{3,30}$/.test(uname)) { toast('ইউজারনেমে শুধু ইংরেজি ছোট হাতের অক্ষর, সংখ্যা, . আর _ (৩-৩০)'); return; }
-  const fp = {}; ['work', 'education', 'city', 'hometown', 'relationship', 'birthday', 'gender', 'languages', 'hobbies', 'website', 'nickname'].forEach(k => { const el = document.getElementById('pv_' + k); if (el) fp[k] = el.value; });
-  const upd = { name: $('#epName').value.trim() || me.name, city: $('#epCity').value.trim(), bio: $('#epBio').value.trim(), username: uname || null, birthday: $('#epBirthday').value || null, emergency: $('#epEmergency').value.trim(), work: $('#epWork').value.trim(), education: $('#epEdu').value.trim(), hometown: $('#epHome').value.trim(), relationship: $('#epRel').value, gender: $('#epGender').value, nickname: $('#epNick').value.trim(), languages: $('#epLang').value.trim(), website: $('#epWeb').value.split('\n').map(x => x.trim()).filter(Boolean).slice(0, 5).join('\n'), hobbies: $('#epHobby').value.trim(), quote: $('#epQuote').value.trim(), featured: $('#epFeatured').value.trim(), category: $('#epCategory').value, pronouns: $('#epPronouns').value.trim(), field_privacy: fp };
-  const af = $('#epAvatar').files[0]; if (af) upd.avatar_url = await uploadImage(af);
-  const cf = $('#epCover').files[0]; if (cf) upd.cover_url = await uploadImage(cf);
+async function epSave(key){
+  const c = EP_EDITS[key]; if (!c) return;
+  const v = $('#epf').value.trim();
+  if (c.valid) { const r = c.valid(v); if (r !== true) { toast(r); return; } }
+  const upd = c.set(v);
+  if (c.pronouns) upd.pronouns = $('#epfPron').value.trim();
+  if (c.aud) upd.field_privacy = { ...(me.field_privacy || {}), [c.aud]: $('#epAud').value };
   const { data, error } = await sb.from('profiles').update(upd).eq('id', me.id).select().single();
   if (error) { toast(error.message && error.message.includes('username') ? 'এই ইউজারনেম অন্য কেউ নিয়েছে' : 'সংরক্ষণ হয়নি'); return; }
-  me = data; profilesCache[me.id] = me; closeSheet(); toast('প্রোফাইল আপডেট হয়েছে ✓'); renderProfile(me.id);
+  me = data; profilesCache[me.id] = me; closeSheet(); toast('সংরক্ষণ হয়েছে ✓'); editProfile();
+}
+async function epUpload(kind, input){
+  const f = input.files && input.files[0]; if (!f) return;
+  const url = await uploadImage(f); if (!url) { toast('ছবি ওঠেনি'); return; }
+  const upd = kind === 'avatar' ? { avatar_url: url } : { cover_url: url };
+  const { data, error } = await sb.from('profiles').update(upd).eq('id', me.id).select().single();
+  if (error) { toast('সংরক্ষণ হয়নি'); return; }
+  me = data; profilesCache[me.id] = me; toast('ছবি বদলানো হয়েছে ✓'); editProfile();
+}
+function familySheet(){
+  sheet(`<h3>${ic('users', 18)} পরিবার</h3><div id="epFamily"><p style="font-size:13px;color:var(--mut)">লোড হচ্ছে...</p></div><button class="btn ghost block" style="margin-top:6px" onclick="famAddSheet()">+ পরিবারের সদস্য যোগ করো</button>`);
+  loadEpFamily();
+}
+function editProfile(){
+  curView = 'editprofile'; renderShell(); window.scrollTo(0, 0);
+  const audTxt = k => { const v = (me.field_privacy || {})[k] || 'public'; return v === 'me' ? '🔒 শুধু আমি' : v === 'friends' ? '👥 বন্ধুরা' : '🌐 সবাই'; };
+  const epRow = (icon, label, value, audKey, fn) => `<button class="menu-item" onclick="${fn}">${ic(icon)}<span style="flex:1;min-width:0;text-align:left"><span style="display:block;font-weight:600">${label}</span><span style="display:block;font-size:13px;color:${value ? 'var(--ink2)' : 'var(--faint)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${value ? esc(value) : 'যোগ করো'}</span>${audKey ? `<span style="display:block;font-size:11.5px;color:var(--faint);margin-top:1px">${audTxt(audKey)}</span>` : ''}</span>${ic('edit', 15)}</button>`;
+  view().innerHTML = `<div class="view">
+    <div style="padding:14px 16px;font-size:18px;font-weight:800;display:flex;align-items:center;gap:9px"><button class="icb" style="width:34px;height:34px" onclick="renderProfile(me.id)">←</button>প্রোফাইল এডিট</div>
+    <div style="position:relative">
+      <div class="cover" ${safeUrl(me.cover_url) ? `style="background-image:url('${safeUrl(me.cover_url)}')"` : (me.theme ? `style="background:${(PROFILE_THEMES.find(t => t[0] === me.theme) || [])[2] || ''}"` : '')}></div>
+      <label style="position:absolute;right:12px;top:10px;width:36px;height:36px;border-radius:50%;background:var(--card);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;cursor:pointer" title="কভার ছবি"><input type="file" accept="image/*" hidden onchange="epUpload('cover', this)">${ic('img', 17)}</label>
+    </div>
+    <div class="prof">
+      <div style="position:relative;width:90px;margin:-45px auto 7px"><div class="big" style="margin:0">${me.avatar_url ? `<img src="${esc(me.avatar_url)}">` : esc(me.name[0] || '?')}</div><label style="position:absolute;right:-2px;bottom:0;width:30px;height:30px;border-radius:50%;background:var(--card);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:2" title="প্রোফাইল ছবি"><input type="file" accept="image/*" hidden onchange="epUpload('avatar', this)">${ic('img', 14)}</label></div>
+      <div style="font-size:19px;font-weight:800;margin-top:6px">${esc(me.name)}</div>
+      ${me.username ? `<p style="color:var(--acc);font-size:13px;margin-top:2px">@${esc(me.username)}</p>` : ''}
+    </div>
+    <div class="seclabel">মৌলিক তথ্য</div>
+    <div class="card" style="padding:6px 15px">
+      ${epRow('user', 'নাম', me.name, null, "epEdit('name')")}
+      ${epRow('idCard', 'ইউজারনেম', me.username ? '@' + me.username : '', null, "epEdit('username')")}
+    </div>
+    <div class="seclabel">পরিচিতি</div>
+    <div class="card" style="padding:6px 15px">
+      ${epRow('type', 'বায়ো', me.bio, null, "epEdit('bio')")}
+      ${epRow('pin', 'Pinned details', me.featured, null, "epEdit('featured')")}
+    </div>
+    <div class="seclabel">ক্যাটাগরি</div>
+    <div class="card" style="padding:6px 15px">
+      ${epRow('star', 'ক্যাটাগরি', me.category, null, "epEdit('category')")}
+    </div>
+    <div class="seclabel">ব্যক্তিগত তথ্য</div>
+    <div class="card" style="padding:6px 15px">
+      ${epRow('briefcase', 'কাজ / পেশা', me.work, 'work', "epEdit('work')")}
+      ${epRow('grad', 'পড়াশোনা', me.education, 'education', "epEdit('education')")}
+      ${epRow('pinLoc', 'শহর', me.city, 'city', "epEdit('city')")}
+      ${epRow('home', 'নিজ শহর', me.hometown, 'hometown', "epEdit('hometown')")}
+      ${epRow('calendar', 'জন্মদিন', me.birthday, 'birthday', "epEdit('birthday')")}
+      ${epRow('heart', 'সম্পর্কের অবস্থা', me.relationship, 'relationship', "epEdit('relationship')")}
+      <button class="menu-item" onclick="familySheet()">${ic('users')}<span style="flex:1;min-width:0;text-align:left"><span style="display:block;font-weight:600">পরিবার</span><span id="epFamVal" style="display:block;font-size:13px;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">দেখো / যোগ করো</span></span>${ic('edit', 15)}</button>
+      ${epRow('user', 'লিঙ্গ', me.gender ? me.gender + (me.pronouns ? ' (' + me.pronouns + ')' : '') : '', 'gender', "epEdit('gender')")}
+      ${epRow('type', 'ভাষা', me.languages, 'languages', "epEdit('languages')")}
+      ${epRow('palette', 'শখ', me.hobbies, 'hobbies', "epEdit('hobbies')")}
+      ${epRow('smile', 'ডাকনাম', me.nickname, 'nickname', "epEdit('nickname')")}
+      ${epRow('type', 'পছন্দের উক্তি', me.quote, null, "epEdit('quote')")}
+      ${epRow('lock', 'জরুরি যোগাযোগ', me.emergency, null, "epEdit('emergency')")}
+    </div>
+    <div class="seclabel">লিঙ্কসমূহ</div>
+    <div class="card" style="padding:6px 15px;margin-bottom:20px">
+      ${epRow('globe', 'লিঙ্ক', (me.website || '').split('\n').map(x => x.trim()).filter(Boolean).join(' · '), 'website', "epEdit('website')")}
+    </div>
+  </div>`;
+  sb.from('family_links').select('*').eq('status', 'accepted').or(`from_id.eq.${me.id},to_id.eq.${me.id}`).then(async ({ data }) => {
+    const el = document.getElementById('epFamVal'); if (!el) return;
+    if (!data || !data.length) { el.textContent = 'যোগ করো'; return; }
+    await cacheProfiles(data.flatMap(f => [f.from_id, f.to_id]));
+    el.textContent = data.map(f => prof(f.from_id === me.id ? f.to_id : f.from_id).name.split(' ')[0]).join(', ');
+  });
 }
 async function renderSaved(){
   curView = 'saved'; renderShell();
@@ -2235,7 +2303,7 @@ async function renderChatList(mode = 'main'){
   chatListMode = mode;
   if (typingChannel) { sb.removeChannel(typingChannel); typingChannel = null; }
   const head = mode === 'archived' ? 'আর্কাইভ করা চ্যাট' : mode === 'restricted' ? 'রেস্ট্রিক্ট করা চ্যাট' : mode === 'requests' ? 'মেসেজ রিকুয়েস্ট' : 'চ্যাট';
-  view().innerHTML = `<div class="view"><div style="padding:14px 16px;font-size:18px;font-weight:800;display:flex;align-items:center;gap:9px">${mode !== 'main' ? `<button class="icb" style="width:34px;height:34px" onclick="renderChatList()">←</button>` : ''}${head}${mode === 'main' ? `<button class="icb" style="width:34px;height:34px;margin-left:auto" onclick="composeSheet()" aria-label="নতুন মেসেজ">${ic('edit', 16)}</button>` : ''}</div>${mode === 'main' ? '<div id="notesStrip"></div>' : ''}<div id="chatList"><div class="empty">লোড হচ্ছে...</div></div></div>`;
+  view().innerHTML = `<div class="view"><div style="padding:14px 16px;font-size:18px;font-weight:800;display:flex;align-items:center;gap:9px">${mode !== 'main' ? `<button class="icb" style="width:34px;height:34px" onclick="renderChatList()">←</button>` : ''}${head}${mode === 'main' ? `<button class="icb" style="width:34px;height:34px;margin-left:auto" onclick="composeSheet()" aria-label="নতুন মেসেজ">${ic('edit', 16)}</button><button class="icb" style="width:34px;height:34px" onclick="renderMsgSettings()" aria-label="মেসেজিং সেটিংস">${ic('gear', 16)}</button>` : ''}</div>${mode === 'main' ? '<div id="notesStrip"></div>' : ''}<div id="chatList"><div class="empty">লোড হচ্ছে...</div></div></div>`;
   if (mode === 'main') renderNotesStrip();
   const { data: myConvs } = await sb.from('conversation_members').select('*').eq('user_id', me.id);
   const ids = (myConvs || []).map(r => r.conversation_id);
@@ -2710,38 +2778,69 @@ async function deleteMsg(mid){
 function chatInfoSheet(){
   const { conv, myRow, otherRow } = chatMeta;
   if (!conv) return;
+  closeSheet();
   const nickRow = conv.is_group ? myRow : otherRow;
   const cur = conv.theme || '';
   const isGroupCreator = !!(conv.is_group && chatMeta.group && chatMeta.group.created_by === me.id);
   const QUICK_EMOJIS = ['❤️', '😂', '😮', '😢', '👍', '🙏', '🔥', '😍'];
   const quickCur = (myRow && myRow.quick_emoji) || '❤️';
-  sheet(`<h3>${ic('info', 18)} চ্যাটের তথ্য</h3>
-    <button class="menu-item" onclick="setNicknameSheet()">${ic('edit')} ডাকনাম দাও${nickRow && nickRow.nickname ? `<span style="margin-left:auto" class="pill">${esc(nickRow.nickname)}</span>` : ''}</button>
-    <div class="seclabel" style="margin:12px 0 4px">চ্যাটের থিম</div>
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:4px 0 8px">
-      <button onclick="setChatTheme('')" style="background:none;border:none;cursor:pointer;text-align:center;padding:0"><span style="display:block;width:40px;height:40px;margin:0 auto;border-radius:50%;background:var(--line2);border:2px ${cur === '' ? 'solid var(--acc)' : 'solid var(--line)'}"></span><small style="font-size:11px;color:var(--mut)">ডিফল্ট</small></button>
-      ${CHAT_THEMES.map(([k, c1, c2, label]) => `<button onclick="setChatTheme('${k}')" style="background:none;border:none;cursor:pointer;text-align:center;padding:0"><span style="display:block;width:40px;height:40px;margin:0 auto;border-radius:50%;background:linear-gradient(135deg,${c1},${c2});border:2px ${cur === k ? 'solid var(--acc)' : 'solid transparent'}"></span><small style="font-size:11px;color:var(--mut)">${label}</small></button>`).join('')}
+  const other = !conv.is_group && otherRow ? prof(otherRow.user_id) : null;
+  const g = conv.is_group ? chatMeta.group : null;
+  const actBtn = (fn, icon, label) => `<button onclick="${fn}" style="background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;width:64px;padding:0"><span style="width:52px;height:52px;border-radius:50%;background:var(--line2);display:flex;align-items:center;justify-content:center;color:var(--ink)">${ic(icon, 22)}</span><small style="font-size:12px;color:var(--ink2)">${label}</small></button>`;
+  view().innerHTML = `<div class="view" id="ciPage">
+    <div style="padding:10px 16px 0"><button class="icb" onclick="openChat('${conv.id}')">←</button></div>
+    <div style="text-align:center;padding:6px 16px 2px">
+      ${conv.is_group
+        ? `<div style="display:flex;justify-content:center">${avatar(g || { name: 'গ্রুপ' }, 76, 26)}</div><div style="font-size:19px;font-weight:800;margin-top:8px">${esc(g ? g.name : 'গ্রুপ চ্যাট')}</div><div style="color:var(--mut);font-size:13px">${bn(chatMeta.members.length)} জন সদস্য</div>`
+        : `<div style="display:flex;justify-content:center">${avatar(other, 76, 26)}</div><div style="font-size:19px;font-weight:800;margin-top:8px">${esc(nickRow && nickRow.nickname ? nickRow.nickname : other.name)}${badges(other)}</div><div style="color:var(--mut);font-size:13px">${other.username ? '@' + esc(other.username) : ''}</div>`}
     </div>
-    <button class="menu-item" onclick="toggleChatPin()">${ic('pin')} ${myRow && myRow.pinned ? 'পিন সরাও' : 'পিন করো'}</button>
-    <button class="menu-item" onclick="toggleChatMute()">${ic('mute')} ${myRow && myRow.muted ? 'আনমিউট' : 'মিউট'}</button>
-    <button class="menu-item" onclick="toggleDisappear()">${ic('clock')} ডিসঅ্যাপিয়ারিং মেসেজ<span style="margin-left:auto" class="pill">${conv.disappear ? 'চালু' : 'বন্ধ'}</span></button>
-    <button class="menu-item" onclick="chatMediaSheet()">${ic('img')} এই চ্যাটের মিডিয়া</button>
-    <button class="menu-item" onclick="toggleChatArchive()">${ic('archive')} ${myRow && myRow.archived ? 'আর্কাইভ থেকে তোলো' : 'আর্কাইভ করো'}</button>
-    ${!conv.is_group ? `<button class="menu-item" onclick="toggleChatRestrict()">${ic('eyeOff')} ${myRow && myRow.restricted ? 'রেস্ট্রিক্ট সরাও' : 'রেস্ট্রিক্ট করো'}<span style="margin-left:auto" class="pill">${myRow && myRow.restricted ? 'চালু' : 'বন্ধ'}</span></button>` : ''}
-    ${!conv.is_group && otherRow ? `
-    <button class="menu-item" onclick="closeSheet();renderProfile('${otherRow.user_id}')">${ic('user')} প্রোফাইল দেখো</button>
-    <button class="menu-item" onclick="shareContactSheet()">${ic('share')} কন্টাক্ট শেয়ার করো</button>
-    <button class="menu-item" onclick="groupWithSheet()">${ic('users')} গ্রুপ চ্যাট তৈরি করো</button>
-    <button class="menu-item" onclick="infoMarkUnread()">${ic('eyeOff')} না-পড়া ধরো</button>` : ''}
-    <button class="menu-item" style="color:var(--danger)" onclick="rowDeleteConv('${conv.id}')">${ic('trash')} চ্যাট মুছো (শুধু তোমার দিক থেকে)</button>
-    <div class="seclabel" style="margin:12px 0 4px">কুইক রিঅ্যাকশন</div>
-    <div style="display:flex;justify-content:space-between;padding:2px 0 8px">${QUICK_EMOJIS.map(e => `<button style="font-size:25px;background:${e === quickCur ? 'var(--line2)' : 'none'};border:${e === quickCur ? '2px solid var(--acc)' : '2px solid transparent'};border-radius:50%;width:42px;height:42px;cursor:pointer" onclick="setQuickEmoji('${e}')">${e}</button>`).join('')}</div>
-    ${isGroupCreator ? `
-    <div class="seclabel" style="margin:12px 0 4px">গ্রুপ অ্যাডমিন</div>
-    <button class="menu-item" onclick="announcementSheet()">${ic('pin')} ঘোষণা${conv.announcement ? `<span style="margin-left:auto" class="pill">চালু</span>` : ''}</button>
-    <div class="seclabel" style="margin:12px 0 4px">সদস্যরা</div>
-    ${chatMeta.members.map(mb => { const p = prof(mb.user_id); return `<div class="menu-item" style="cursor:default">${avatar(p, 32, 13)}<span style="flex:1;min-width:0">${esc(p.name)}${mb.user_id === me.id ? ' (তুমি)' : ''}</span>${mb.user_id !== me.id ? `<button class="btn ghost sm" onclick="removeChatMember('${mb.user_id}')">সরাও</button>` : ''}</div>`; }).join('')}` : ''}`);
+    <div style="display:flex;justify-content:center;gap:16px;padding:14px 0 4px">
+      ${!conv.is_group ? actBtn(`goProfile('${otherRow.user_id}')`, 'user', 'প্রোফাইল') : ''}
+      ${actBtn('ciMute()', 'mute', myRow && myRow.muted ? 'আনমিউট' : 'মিউট')}
+      ${actBtn(`openChat('${conv.id}');setTimeout(chatSearchSheet,400)`, 'search', 'সার্চ')}
+      ${actBtn('ciPin()', 'pin', myRow && myRow.pinned ? 'পিন সরাও' : 'পিন')}
+    </div>
+    ${conv.announcement ? `<div class="card" style="padding:10px 15px;font-size:13.5px">📌 ${esc(conv.announcement)}</div>` : ''}
+    <div class="seclabel">কাজসমূহ</div>
+    <div class="card" style="padding:6px 15px">
+      ${!conv.is_group ? `<button class="menu-item" onclick="infoMarkUnread()">${ic('eyeOff')} না-পড়া ধরো</button>
+      <button class="menu-item" onclick="shareContactSheet()">${ic('share')} কন্টাক্ট শেয়ার করো</button>
+      <button class="menu-item" onclick="groupWithSheet()">${ic('users')} ${esc(other.name.split(' ')[0])}-এর সাথে গ্রুপ তৈরি</button>` : ''}
+      <button class="menu-item" onclick="chatMediaSheet()">${ic('img')} এই চ্যাটের মিডিয়া</button>
+      <button class="menu-item" onclick="toggleChatArchive()">${ic('archive')} ${myRow && myRow.archived ? 'আর্কাইভ থেকে তোলো' : 'আর্কাইভ করো'}</button>
+      ${isGroupCreator ? `<button class="menu-item" onclick="announcementSheet()">${ic('pin')} ঘোষণা${conv.announcement ? `<span style="margin-left:auto" class="pill">চালু</span>` : ''}</button>` : ''}
+    </div>
+    ${conv.is_group ? `<div class="seclabel">সদস্যরা</div><div class="card" style="padding:6px 15px">${chatMeta.members.map(mb => { const p = prof(mb.user_id); return `<div class="menu-item" style="cursor:default">${avatar(p, 32, 13)}<span style="flex:1;min-width:0">${esc(p.name)}${mb.user_id === me.id ? ' (তুমি)' : ''}</span>${isGroupCreator && mb.user_id !== me.id ? `<button class="btn ghost sm" onclick="removeChatMember('${mb.user_id}')">সরাও</button>` : ''}</div>`; }).join('')}</div>` : ''}
+    <div class="seclabel">সাজসজ্জা</div>
+    <div class="card" style="padding:6px 15px">
+      <button class="menu-item" onclick="setNicknameSheet()">${ic('edit')} ডাকনাম দাও${nickRow && nickRow.nickname ? `<span style="margin-left:auto" class="pill">${esc(nickRow.nickname)}</span>` : ''}</button>
+      <div style="font-size:13.5px;padding:9px 0 2px;color:var(--ink2)">কুইক রিঅ্যাকশন</div>
+      <div style="display:flex;justify-content:space-between;padding:2px 0 8px">${QUICK_EMOJIS.map(e => `<button style="font-size:25px;background:${e === quickCur ? 'var(--line2)' : 'none'};border:${e === quickCur ? '2px solid var(--acc)' : '2px solid transparent'};border-radius:50%;width:42px;height:42px;cursor:pointer" onclick="setQuickEmoji('${e}')">${e}</button>`).join('')}</div>
+      <div style="font-size:13.5px;padding:4px 0 2px;color:var(--ink2)">চ্যাটের থিম</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:4px 0 6px">
+        <button onclick="setChatTheme('')" style="background:none;border:none;cursor:pointer;text-align:center;padding:0"><span style="display:block;width:40px;height:40px;margin:0 auto;border-radius:50%;background:var(--line2);border:2px ${cur === '' ? 'solid var(--acc)' : 'solid var(--line)'}"></span><small style="font-size:11px;color:var(--mut)">ডিফল্ট</small></button>
+        ${CHAT_THEMES.map(([k, c1, c2, label]) => `<button onclick="setChatTheme('${k}')" style="background:none;border:none;cursor:pointer;text-align:center;padding:0"><span style="display:block;width:40px;height:40px;margin:0 auto;border-radius:50%;background:linear-gradient(135deg,${c1},${c2});border:2px ${cur === k ? 'solid var(--acc)' : 'solid transparent'}"></span><small style="font-size:11px;color:var(--mut)">${label}</small></button>`).join('')}
+      </div>
+    </div>
+    <div class="seclabel">গোপনীয়তা ও সহায়তা</div>
+    <div class="card" style="padding:6px 15px">
+      <button class="menu-item" onclick="toggleDisappear()">${ic('clock')} ডিসঅ্যাপিয়ারিং মেসেজ<span style="margin-left:auto" class="pill">${conv.disappear ? 'চালু' : 'বন্ধ'}</span></button>
+      <button class="menu-item" onclick="toggleHideReads()">${ic('eye')} রিড রিসিপ্ট<span style="margin-left:auto" class="pill">${me.hide_reads ? 'বন্ধ' : 'চালু'}</span></button>
+      ${!conv.is_group ? `<button class="menu-item" onclick="ciRestrict()">${ic('eyeOff')} ${myRow && myRow.restricted ? 'রেস্ট্রিক্ট সরাও' : 'রেস্ট্রিক্ট করো'}<span style="margin-left:auto" class="pill">${myRow && myRow.restricted ? 'চালু' : 'বন্ধ'}</span></button>
+      <button class="menu-item" onclick="ciBlock()">${ic('lock')} ব্লক করো</button>
+      <button class="menu-item" onclick="ciReport()">${ic('shield')} রিপোর্ট করো<span style="margin-left:auto;font-size:11.5px;color:var(--faint)">কথোপকথন রিপোর্ট করো</span></button>` : ''}
+    </div>
+    <div class="card" style="padding:6px 15px;margin-bottom:20px">
+      <button class="menu-item" style="color:var(--danger)" onclick="rowDeleteConv('${conv.id}')">${ic('trash')} চ্যাট মুছো (শুধু তোমার দিক থেকে)</button>
+    </div>
+  </div>`;
+  window.scrollTo(0, 0);
 }
+async function ciPin(){ await toggleChatPin(); if (document.getElementById('ciPage')) chatInfoSheet(); }
+async function ciMute(){ await toggleChatMute(); if (document.getElementById('ciPage')) chatInfoSheet(); }
+async function ciRestrict(){ await toggleChatRestrict(); if (document.getElementById('ciPage')) chatInfoSheet(); }
+function ciBlock(){ const { otherRow } = chatMeta; if (otherRow) blockUser(otherRow.user_id); }
+function ciReport(){ const { otherRow } = chatMeta; if (!otherRow) return; reportItem('user', otherRow.user_id); toast('রিপোর্ট করা হয়েছে — ধন্যবাদ'); }
 async function infoMarkUnread(){
   const { conv } = chatMeta; if (!conv) return;
   const lastIn = [...chatMsgs].reverse().find(m => m.sender_id !== me.id);
@@ -3024,7 +3123,8 @@ async function toggleHideReads(){
   if (error) { toast('বদলানো যায়নি'); return; }
   me.hide_reads = next; profilesCache[me.id] = me;
   toast(next ? 'রিড রিসিপ্ট লুকানো হয়েছে' : 'রিড রিসিপ্ট দেখানো হবে');
-  renderSettings();
+  if (curView === 'settings') renderSettings();
+  else if (document.getElementById('ciPage')) chatInfoSheet();
 }
 async function renderAdmin(){
   if (!me.is_admin) { go('feed'); return; }
@@ -3159,15 +3259,21 @@ async function renderSettings(){
     </div>
     <p style="text-align:center;color:var(--faint);font-size:11.5px;padding:16px 0 4px">আড্ডাBook · LIMON Labs</p></div>`;
 }
-function msgSettingsSheet(){
-  sheet(`<h3>${ic('msg', 18)} মেসেজিং সেটিংস</h3>
-    <button class="menu-item" onclick="toggleHideOnline()">${ic('eye')} অ্যাক্টিভ স্ট্যাটাস<span style="margin-left:auto" class="pill">${me.hide_online ? 'বন্ধ' : 'চালু'}</span></button>
-    <p style="font-size:12px;color:var(--mut);margin:-2px 0 8px;line-height:1.55">বন্ধ করলে কেউ তোমার অনলাইন থাকা বা টাইপিং দেখবে না — তুমিও অন্য কারোরটা দেখবে না।</p>
-    <button class="menu-item" onclick="toggleMsgNotifs()">${ic('bell')} মেসেজ নোটিফিকেশন<span style="margin-left:auto" class="pill">${me.msg_notifs === false ? 'বন্ধ' : 'চালু'}</span></button>
-    <button class="menu-item" onclick="closeSheet();renderChatList('requests')">${ic('msg')} মেসেজ রিকুয়েস্ট</button>
-    <button class="menu-item" onclick="closeSheet();renderChatList('archived')">${ic('archive')} আর্কাইভ করা চ্যাট</button>
-    <button class="menu-item" onclick="msgPrivacySheet()">${ic('lock')} কে মেসেজ পাঠাতে পারবে</button>`);
+function renderMsgSettings(){
+  curView = 'msgsettings'; renderShell(); window.scrollTo(0, 0);
+  view().innerHTML = `<div class="view">
+    <div style="padding:14px 16px;font-size:18px;font-weight:800;display:flex;align-items:center;gap:9px"><button class="icb" style="width:34px;height:34px" onclick="go('chat')">←</button>মেসেজিং সেটিংস</div>
+    <div class="card" style="padding:6px 15px">
+      <button class="menu-item" onclick="toggleHideOnline()">${ic('eye')} অ্যাক্টিভ স্ট্যাটাস<span style="margin-left:auto" class="pill">${me.hide_online ? 'বন্ধ' : 'চালু'}</span></button>
+      <p style="font-size:12px;color:var(--mut);margin:-2px 0 8px;line-height:1.55">বন্ধ করলে কেউ তোমার অনলাইন থাকা বা টাইপিং দেখবে না — তুমিও অন্য কারোরটা দেখবে না।</p>
+      <button class="menu-item" onclick="toggleMsgNotifs()">${ic('bell')} মেসেজ নোটিফিকেশন<span style="margin-left:auto" class="pill">${me.msg_notifs === false ? 'বন্ধ' : 'চালু'}</span></button>
+      <button class="menu-item" onclick="renderChatList('requests')">${ic('msg')} মেসেজ রিকুয়েস্ট</button>
+      <button class="menu-item" onclick="renderChatList('archived')">${ic('archive')} আর্কাইভ করা চ্যাট</button>
+      <button class="menu-item" onclick="renderChatList('restricted')">${ic('eyeOff')} রেস্ট্রিক্ট করা চ্যাট</button>
+      <button class="menu-item" onclick="msgPrivacySheet()">${ic('lock')} কে মেসেজ পাঠাতে পারবে</button>
+    </div></div>`;
 }
+function msgSettingsSheet(){ renderMsgSettings(); }
 async function toggleHideOnline(){
   const next = !me.hide_online;
   const { error } = await sb.from('profiles').update({ hide_online: next }).eq('id', me.id);
