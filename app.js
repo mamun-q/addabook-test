@@ -19,8 +19,11 @@ let notifChannel = null;
 
 const $ = s => document.querySelector(s);
 const view = () => $('#view');
+/* ---------- LANGUAGE: saved pref wins, else auto-detect from the device/browser.
+   'bn' rendering is the original behaviour; 'en' layers on top via the I18N pass below. */
+let LANG = (() => { const s = localStorage.getItem('adda-lang'); if (s === 'bn' || s === 'en') return s; return (navigator.language || '').toLowerCase().startsWith('bn') ? 'bn' : 'en'; })();
 const BN = '০১২৩৪৫৬৭৮৯';
-const bn = n => String(n).replace(/[0-9]/g, d => BN[d]);
+const bn = n => LANG === 'en' ? String(n) : String(n).replace(/[0-9]/g, d => BN[d]);
 function esc(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 const COLORS = ['#4F46E5','#2563EB','#DB2777','#059669','#D97706','#7C3AED','#0891B2','#DC2626'];
 function colorFor(id){ let h = 0; for (const c of String(id)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return COLORS[h % COLORS.length]; }
@@ -32,6 +35,13 @@ function avatar(p, size = 38, fs = 15){
 function badges(p){ return (p && p.verified ? '<span class="vf">✓</span>' : '') + (p && p.badge ? '<span class="gold">◆</span>' : ''); }
 function timeAgo(ts){
   const s = (Date.now() - new Date(ts).getTime()) / 1000;
+  if (LANG === 'en'){
+    if (s < 60) return 'Just now';
+    if (s < 3600) return Math.floor(s / 60) + ' min ago';
+    if (s < 86400) return Math.floor(s / 3600) + ' hr ago';
+    if (s < 86400 * 30){ const d = Math.floor(s / 86400); return d + (d === 1 ? ' day ago' : ' days ago'); }
+    return new Date(ts).toLocaleDateString('en-US');
+  }
   if (s < 60) return 'এখনই';
   if (s < 3600) return bn(Math.floor(s / 60)) + ' মিনিট আগে';
   if (s < 86400) return bn(Math.floor(s / 3600)) + ' ঘণ্টা আগে';
@@ -62,6 +72,384 @@ async function cacheProfiles(ids){
 }
 function prof(id){ return profilesCache[id] || { id, name: 'ব্যবহারকারী', avatar_url: '' }; }
 
+/* ================= I18N: English UI layer (active only when LANG === 'en') =================
+   How it works: the app always renders Bangla strings. In English mode a DOM pass
+   translates text nodes + placeholder/aria-label/title attributes using the exact-match
+   dictionary below, then anchored patterns (composed strings), then distinctive fragments.
+   User content is never touched: post bodies (.ptext), chat bubbles (.msg) and comment
+   bodies are skipped, stored values are never read from the DOM, and <option> elements
+   keep their original Bangla value attribute so form submissions stay identical. */
+const I18N = {
+  /* shell / nav / auth */
+  'হোম': 'Home', 'বন্ধু': 'Friend', 'চ্যাট': 'Chat', 'প্রোফাইল': 'Profile', 'আবিষ্কার': 'Explore',
+  'খোঁজো': 'Search', 'নোটিফিকেশন': 'Notifications', 'স্টিকার': 'Stickers', 'ভয়েস মেসেজ': 'Voice message',
+  'বন্ধ করো': 'Close', 'বন্ধুদের সাথে প্রতিদিনের আড্ডা, এক জায়গায়': 'Everyday adda with friends, in one place',
+  'তোমার নাম': 'Your name', 'ইমেইল': 'Email', 'পাসওয়ার্ড (কমপক্ষে ৬ অক্ষর)': 'Password (at least 6 characters)',
+  'লগ ইন': 'Log in', 'অ্যাকাউন্ট নেই?': "Don't have an account?", 'নতুন অ্যাকাউন্ট খোলো': 'Create a new account',
+  'অ্যাকাউন্ট খোলো': 'Create account', 'আগে থেকেই অ্যাকাউন্ট আছে?': 'Already have an account?', 'লগ ইন করো': 'Log in',
+  'অ্যাকাউন্ট তৈরি! ইমেইলে পাঠানো লিংকে চাপ দিয়ে নিশ্চিত করে তারপর লগ ইন করো।': 'Account created! Tap the link sent to your email to confirm, then log in.',
+  'লগ ইন হয়নি — ইমেইল/পাসওয়ার্ড মিলিয়ে আবার চেষ্টা করো': 'Login failed — check your email/password and try again',
+  'নাম, ইমেইল আর কমপক্ষে ৬ অক্ষরের পাসওয়ার্ড দাও': 'Enter your name, email and a password of at least 6 characters',
+  'প্রোফাইল তৈরি হয়নি': "Profile couldn't be created",
+  /* common */
+  'লোড হচ্ছে...': 'Loading...', 'সেভ': 'Save', 'বানাও': 'Create', 'পাঠাও': 'Send', 'খোলো': 'Open',
+  'মুছো': 'Delete', 'মুছে ফেলো': 'Delete', '🗑 মুছো': '🗑 Delete', 'সংরক্ষণ করো': 'Save', 'যোগ করো': 'Add',
+  'তুমি': 'You', 'ব্যবহারকারী': 'User', 'নতুন মানুষ': 'New person', 'সব': 'All',
+  'ছবি': 'Photo', 'দিন': 'days', 'টোকেন': 'Tokens', 'ফলোয়ার': 'Followers', 'পোস্ট': 'Posts',
+  /* feed / composer */
+  'মনে কী চলছে?': "What's on your mind?", '🛍 বাজার': '🛍 Market', 'সব দেখো': 'See all',
+  'পোস্ট করো': 'Post', '🌍 সবাই দেখবে': '🌍 Everyone can see', 'ছবি যোগ করো': 'Add photo',
+  '🎬 ভিডিও যোগ করো': '🎬 Add video', '🖼 কোলাজ বানাও (২-৪টি ছবি)': '🖼 Make a collage (2-4 photos)',
+  '📊 পোল যোগ করো': '📊 Add a poll', 'জায়গা (ঐচ্ছিক)': 'Location (optional)',
+  'অপশন ২': 'Option 2', 'অপশন ৪ (ঐচ্ছিক)': 'Option 4 (optional)',
+  'টিপস: #হ্যাশট্যাগ দিলে ট্রেন্ডিংয়ে উঠবে': 'Tip: add #hashtags to show up in Trending',
+  'কিছু লেখো, ছবি দাও বা পোল বানাও': 'Write something, add a photo or create a poll',
+  'এক পোস্টে ২টার বেশি লিংক দেওয়া যাবে না': "You can't add more than 2 links in one post",
+  'একটু ধীরে — ৮ সেকেন্ড পর আবার পোস্ট করো': 'Slow down — post again after 8 seconds',
+  'শিডিউলের সময় ভবিষ্যতে দাও': 'Choose a future time for scheduling',
+  'পোস্ট হয়েছে ✓': 'Posted ✓', 'পোস্ট হয়েছে ✓ (+১৫ টোকেন)': 'Posted ✓ (+15 tokens)',
+  'পোস্ট শিডিউল হয়েছে ⏰': 'Post scheduled ⏰', 'পোস্ট হয়নি, আবার চেষ্টা করো': "Couldn't post — try again",
+  'ছবি আপলোড হয়নি': "Photo couldn't be uploaded", 'আপলোড হয়নি': "Couldn't upload",
+  '⏰ অনেকক্ষণ ধরে আছো — একটু চোখ আর মনকে বিশ্রাম দাও': "⏰ You've been here a while — give your eyes and mind a rest",
+  /* feed banners */
+  '🕰 এই দিনে': '🕰 On this day', '— তোমার পুরনো একটা পোস্ট আজকের দিনে হয়েছিল': '— one of your old posts was made on this day',
+  'পোস্টটা দেখো': 'View post', 'শুভেচ্ছা জানিয়ে একটা পোস্ট করো': 'Post a greeting', 'শুভেচ্ছা পাঠাও': 'Send greetings',
+  'শুভ জন্মদিন': 'Happy birthday', '🎂🎉 অনেক অনেক শুভেচ্ছা!': '🎂🎉 Best wishes!',
+  /* post card / menu / comments */
+  'পেজ': 'Page', 'বুস্ট করা': 'Boosted', 'লাইক': 'Like', 'মন্তব্য': 'Comments',
+  '🖼 ছবি দেখো (ডেটা সেভার)': '🖼 View photo (data saver)',
+  'পোস্টের অপশন': 'Post options', '✏️ পোস্ট এডিট করো': '✏️ Edit post', '📌 পিন সরাও': '📌 Unpin',
+  '📌 প্রোফাইলে পিন করো': '📌 Pin to profile', '🗄 আর্কাইভ থেকে ফেরাও': '🗄 Restore from archive', '🗄 আর্কাইভ করো': '🗄 Archive',
+  '🔊 পোস্ট পড়ে শোনাও': '🔊 Read post aloud', '🌐 ইংরেজিতে অনুবাদ': '🌐 Translate to English',
+  '🚀 বুস্ট করো (৫০ টোকেন, ২৪ ঘণ্টা)': '🚀 Boost (50 tokens, 24 hours)', '🚀 এই পোস্ট বুস্ট অবস্থায় আছে': '🚀 This post is boosted',
+  '🗑 পোস্ট মুছে ফেলো': '🗑 Delete post', '🚩 রিপোর্ট করো': '🚩 Report', '🚫 এই ব্যবহারকারীকে ব্লক করো': '🚫 Block this user',
+  'পোস্ট এডিট': 'Edit post', 'পোস্ট আপডেট হয়েছে': 'Post updated', 'পোস্ট পিন করা হয়েছে 📌': 'Post pinned 📌',
+  'পিন সরানো হয়েছে': 'Pin removed', 'পোস্ট আর্কাইভ হয়েছে 🗄': 'Post archived 🗄', 'পোস্ট ফিরিয়ে আনা হয়েছে': 'Post restored',
+  'পোস্ট মুছে গেছে': 'Post deleted', 'পোস্ট সেভ হয়েছে': 'Post saved', 'সেভ সরানো হয়েছে': 'Removed from saved',
+  'পোস্ট ২৪ ঘণ্টার জন্য বুস্ট হয়েছে 🚀': 'Post boosted for 24 hours 🚀',
+  'অনুবাদ হচ্ছে...': 'Translating...', 'অনুবাদ হয়নি — নেট চেক করো': "Couldn't translate — check your connection",
+  'অনুবাদের মতো লেখা নেই': 'Nothing to translate', 'শোনানোর মতো লেখা নেই': 'Nothing to read aloud',
+  'তুমি ইতিমধ্যে ভোট দিয়েছ': 'You have already voted',
+  'মন্তব্য লেখো...': 'Write a comment...', 'এখনো কোনো মন্তব্য নেই — প্রথমটা তুমিই করো': 'No comments yet — be the first',
+  'মন্তব্য যায়নি': "Comment couldn't be sent", '🎤 ভয়েস মন্তব্য': '🎤 Voice comment', 'ভয়েস আপলোড হচ্ছে...': 'Uploading voice...',
+  'যায়নি': "Couldn't be sent", 'হয়নি': "Couldn't be done",
+  /* friends */
+  'বন্ধুরা': 'Friends', 'পরামর্শ': 'Suggestions', 'অনুরোধ': 'Requests', 'আমার বন্ধু': 'My friends',
+  'বন্ধু যোগ করো': 'Add friend', 'বন্ধু ✓': 'Friends ✓', 'পাঠানো হয়েছে ✓': 'Sent ✓', 'পাঠানো যায়নি': "Couldn't be sent",
+  'গ্রহণ': 'Accept', 'নতুন বন্ধু যোগ হয়েছে 🎉': 'New friend added 🎉', 'বন্ধু তালিকা থেকে সরানো হয়েছে': 'Removed from friends',
+  'কোনো অনুরোধ নেই': 'No requests', 'এখনো কোনো বন্ধু নেই': 'No friends yet',
+  'এখনো কোনো বন্ধু নেই — পরামর্শ ট্যাব থেকে যোগ করো': 'No friends yet — add some from the Suggestions tab',
+  'আপাতত নতুন কেউ নেই': 'No one new right now', 'আগে কিছু বন্ধু বানাও': 'Make some friends first',
+  'রিপোর্ট / ব্লক': 'Report / Block',
+  /* chat */
+  'এখনো কোনো চ্যাট নেই।': 'No chats yet.', 'বন্ধুর প্রোফাইল থেকে "মেসেজ" চাপ দিলেই চ্যাট শুরু হবে।': 'Tap "Message" on a friend\'s profile to start a chat.',
+  'প্রথম মেসেজটা পাঠাও 👋': 'Send the first message 👋', 'মেসেজ লেখো...': 'Write a message...', 'মেসেজ': 'Message',
+  'মেসেজ করো': 'Message', 'চ্যাট খোলা যায়নি': "Chat couldn't be opened", 'মেসেজ যায়নি': "Message couldn't be sent",
+  'স্টিকার পাঠাও': 'Send a sticker', '(গ্রুপ)': '(Group)', '· গ্রুপ চ্যাট': '· Group chat',
+  /* groups */
+  '👥 গ্রুপ': '👥 Groups', '+ নতুন গ্রুপ বানাও': '+ Create a new group', 'এখনো কোনো গ্রুপ নেই — প্রথমটা তুমিই বানাও!': 'No groups yet — create the first one!',
+  'নতুন গ্রুপ': 'New group', 'গ্রুপের নাম': 'Group name', 'বিষয় (যেমন: পড়াশোনা, খেলা, গান)': 'Topic (e.g. study, sports, music)',
+  'গ্রুপ সম্পর্কে এক লাইন': 'One line about the group', 'গ্রুপ বানাও': 'Create group', 'গ্রুপ তৈরি হয়েছে 🎉': 'Group created 🎉',
+  'গ্রুপ তৈরি হয়নি': "Group couldn't be created", 'গ্রুপের নাম দাও': 'Give the group a name', 'গ্রুপে যোগ দিয়েছ ✓': 'You joined the group ✓',
+  'গ্রুপ ছেড়েছ': 'You left the group', 'গ্রুপ চ্যাট খোলা যায়নি': "Group chat couldn't be opened",
+  '← সব গ্রুপ': '← All groups', 'সদস্য': 'Members', 'গ্রুপে পোস্ট করো': 'Post in group', 'গ্রুপ চ্যাট': 'Group chat',
+  'ছাড়ো': 'Leave', 'গ্রুপের পোস্ট': 'Group posts', 'এই গ্রুপে এখনো পোস্ট নেই': 'No posts in this group yet',
+  '💰 গ্রুপ তহবিল': '💰 Group fund', 'জমা দাও': 'Contribute', 'টোকেনের পরিমাণ': 'Token amount',
+  'জমা আছে — সবাই মিলে ভালো কাজে ব্যবহারের জন্য': 'saved — to be used together for a good cause',
+  'তহবিলে জমা হয়েছে 💰': 'Added to the fund 💰', 'হয়নি — টোকেন কম বা তুমি সদস্য নও': "Couldn't do it — not enough tokens or you're not a member",
+  'পরিমাণ দাও': 'Enter an amount', 'মালিক:': 'Owner:',
+  /* profile */
+  'প্রোফাইল পাওয়া যায়নি': 'Profile not found', '🔗 লিংক কপি': '🔗 Copy link', 'QR কোড': 'QR code',
+  '👁 কে দেখল': '👁 Who viewed', 'প্রোফাইল এডিট': 'Edit profile', '⚙️ সেটিংস': '⚙️ Settings',
+  'ফলো করো': 'Follow', 'ফলো করছ ✓': 'Following ✓', '🎁 উপহার (১০০)': '🎁 Gift (100)', '🙈 বেনামে প্রশ্ন': '🙈 Ask anonymously',
+  'পরিচিতি': 'Intro', 'বন্ধুরা ·': 'Friends ·', 'পোস্টসমূহ': 'Posts', 'কোনো ছবির পোস্ট নেই': 'No photo posts',
+  'এখনো কোনো পোস্ট নেই': 'No posts yet', 'এখনো কোনো পোস্ট নেই।': 'No posts yet.', 'এখনো পোস্ট নেই': 'No posts yet',
+  'নাম': 'Name', 'ইউজারনেম (ইংরেজি ছোট হাতের, যেমন: limon.bd)': 'Username (lowercase English, e.g. limon.bd)',
+  'শহর (যেমন: ঢাকা)': 'City (e.g. Dhaka)', '🎂 জন্মদিন': '🎂 Birthday',
+  'জরুরি যোগাযোগ (শুধু তুমিই দেখবে)': 'Emergency contact (only you can see this)',
+  '💼 কাজ / পেশা (যেমন: ছাত্র, শিক্ষক)': '💼 Work (e.g. student, teacher)', '🎓 পড়াশোনা (যেমন: ঢাকা বিশ্ববিদ্যালয়)': '🎓 Education (e.g. University of Dhaka)',
+  '🏠 নিজ শহর (যেমন: রাজশাহী)': '🏠 Hometown (e.g. Rajshahi)', '❤️ সম্পর্কের অবস্থা (ঐচ্ছিক)': '❤️ Relationship status (optional)',
+  '👤 লিঙ্গ (ঐচ্ছিক)': '👤 Gender (optional)', '🏷 ডাকনাম (যেমন: লিমন)': '🏷 Nickname (e.g. Limon)',
+  '🗣 ভাষা (যেমন: বাংলা, English)': '🗣 Languages (e.g. Bangla, English)', '🌐 ওয়েবসাইট (যেমন: example.com)': '🌐 Website (e.g. example.com)',
+  '🎨 শখ (যেমন: বই পড়া, ফুটবল, গান)': '🎨 Hobbies (e.g. reading, football, music)', '💬 পছন্দের উক্তি': '💬 Favourite quote',
+  'নিজের সম্পর্কে দু-এক লাইন': 'A line or two about yourself', 'প্রোফাইল ছবি': 'Profile photo', 'কভার ছবি': 'Cover photo',
+  'অবিবাহিত': 'Single', 'সম্পর্কে আছি': 'In a relationship', 'বিবাহিত': 'Married', 'জটিল': "It's complicated",
+  'পুরুষ': 'Male', 'মহিলা': 'Female', 'অন্যান্য': 'Other',
+  'ইউজারনেমে শুধু ইংরেজি ছোট হাতের অক্ষর, সংখ্যা, . আর _ (৩-৩০)': 'Username can only have lowercase English letters, numbers, . and _ (3-30)',
+  'এই ইউজারনেম অন্য কেউ নিয়েছে': 'Someone else has taken this username', 'প্রোফাইল আপডেট হয়েছে ✓': 'Profile updated ✓',
+  'সংরক্ষণ হয়নি': "Couldn't save", 'প্রোফাইল লিংক কপি হয়েছে 🔗': 'Profile link copied 🔗',
+  'আগে প্রোফাইল এডিটে একটা ইউজারনেম সেট করো': 'Set a username in Edit Profile first',
+  '⚠️ সতর্কতা: এই অ্যাকাউন্টের বিরুদ্ধে একাধিক রিপোর্ট আছে — লেনদেনে সাবধান': '⚠️ Caution: multiple reports exist against this account — be careful with transactions',
+  '🚩 এই প্রোফাইল রিপোর্ট করো': '🚩 Report this profile', '🚫 ব্লক করো': '🚫 Block',
+  'রিপোর্ট পাঠানো হয়েছে — ধন্যবাদ': 'Report sent — thank you', 'ব্লক করা হয়েছে': 'Blocked',
+  /* notifications */
+  'তোমার পোস্টে লাইক দিয়েছে': 'liked your post', 'তোমার পোস্টে মন্তব্য করেছে': 'commented on your post',
+  'তোমাকে বন্ধুর অনুরোধ পাঠিয়েছে': 'sent you a friend request', 'তোমার বন্ধুর অনুরোধ গ্রহণ করেছে': 'accepted your friend request',
+  'তোমাকে ফলো করেছে': 'followed you', 'তোমাকে ১০০ টোকেন উপহার পাঠিয়েছে': 'sent you a gift of 100 tokens',
+  'তোমার সাথে ম্যাচ হয়েছে 💘': 'matched with you 💘', 'তোমাকে মেসেজ পাঠিয়েছে': 'sent you a message',
+  '🙈 তোমার কাছে একটা বেনামি প্রশ্ন এসেছে': '🙈 You received an anonymous question', 'নতুন আপডেট': 'New update',
+  'কোনো নোটিফিকেশন নেই': 'No notifications',
+  /* search / trending */
+  'মানুষ, পোস্ট বা গ্রুপ খোঁজো...': 'Search people, posts or groups...', 'কমপক্ষে ২ অক্ষর লেখো': 'Type at least 2 characters',
+  'ট্রেন্ডিং': 'Trending', 'জনপ্রিয় পোস্ট': 'Popular posts',
+  'এই সপ্তাহে এখনো কোনো হ্যাশট্যাগ ট্রেন্ড হয়নি — পোস্টে #ট্যাগ ব্যবহার করো!': 'No hashtag has trended this week yet — use #tags in posts!',
+  'নাম, জায়গা বা যেকোনো শব্দ লিখে খোঁজো': 'Search by name, place or any word',
+  /* tokens */
+  'তোমার ব্যালেন্স': 'Your balance', 'প্রতিদিন লগইন, পোস্ট আর মন্তব্য করে টোকেন আয় করো': 'Earn tokens by logging in, posting and commenting every day',
+  '🔥 লগইন স্ট্রিক:': '🔥 Login streak:', 'টোকেন আয় করো': 'Earn tokens', 'টোকেন খরচ করো': 'Spend tokens',
+  'প্রতিদিন লগইন': 'Daily login', 'প্রতিদিন একবার': 'Once a day', 'দিনে সর্বোচ্চ ৫টি পোস্টে': 'On up to 5 posts a day',
+  'দিনে সর্বোচ্চ ১০টি': 'Up to 10 a day', 'স্বাগত বোনাস': 'Welcome bonus', 'নতুন অ্যাকাউন্টে একবার': 'Once, for new accounts',
+  'পোস্ট বুস্ট': 'Post boost', 'নিজের পোস্টের ⋯ মেনু থেকে, ২৪ ঘণ্টা সবার উপরে': "From your post's ⋯ menu — stays on top for 24 hours",
+  'বন্ধুকে উপহার': 'Gift a friend', 'বন্ধুর প্রোফাইল থেকে পাঠাও': "Send it from your friend's profile",
+  'প্রিমিয়াম ব্যাজ': 'Premium badge', 'নামের পাশে সোনালি ব্যাজ': 'A golden badge next to your name',
+  '২০০ দিয়ে কেনো': 'Buy for 200', 'ইতিহাস': 'History', 'এখনো কোনো লেনদেন নেই': 'No transactions yet',
+  'টোকেন যথেষ্ট নেই': 'Not enough tokens', 'টোকেন যথেষ্ট নেই (লাগবে ১০০)': 'Not enough tokens (needs 100)',
+  'টোকেন যথেষ্ট নেই (লাগবে ২০০)': 'Not enough tokens (needs 200)', 'অভিনন্দন! প্রিমিয়াম ব্যাজ পেয়ে গেছ ◆': 'Congratulations! You got the premium badge ◆',
+  '১০০ টোকেন উপহার পাঠানো হয়েছে 🎁': 'A gift of 100 tokens was sent 🎁', 'উপহার পাঠিয়েছ': 'Gift sent', 'উপহার পেয়েছ 🎁': 'Gift received 🎁',
+  'স্বাগত বোনাস 🎉': 'Welcome bonus 🎉', 'দৈনিক লগইন বোনাস': 'Daily login bonus', 'পোস্ট করার পুরস্কার': 'Post reward',
+  'মন্তব্যের পুরস্কার': 'Comment reward', 'বন্ধু আমন্ত্রণের পুরস্কার': 'Friend invite reward', 'কুইজ পুরস্কার': 'Quiz reward',
+  'গ্রুপ তহবিলে জমা': 'Group fund contribution', 'প্রোফাইল থিম': 'Profile theme',
+  /* settings */
+  'সেটিংস': 'Settings', 'আমার জিনিস': 'My things', '✏️ প্রোফাইল এডিট': '✏️ Edit profile', '🪙 টোকেন ওয়ালেট': '🪙 Token wallet',
+  '🔥 লগইন স্ট্রিক': '🔥 Login streak', '🗄 আর্কাইভ করা পোস্ট': '🗄 Archived posts', '🔖 সেভ করা পোস্ট': '🔖 Saved posts',
+  '👁 প্রোফাইল দর্শক': '👁 Profile viewers', '🖼 আমার অ্যালবাম': '🖼 My albums', '📥 আমার ডেটা ডাউনলোড': '📥 Download my data',
+  'তোমার ডেটা তৈরি হচ্ছে...': 'Preparing your data...', 'ডেটা ডাউনলোড হয়েছে 📥': 'Data downloaded 📥',
+  'মজা ও শেখা': 'Fun & learning', '📊 ক্রিয়েটর ড্যাশবোর্ড': '📊 Creator dashboard', '🎨 প্রোফাইল থিম': '🎨 Profile themes',
+  'কমিউনিটি': 'Community', '📄 পেজ': '📄 Pages', '📅 ইভেন্ট': '📅 Events', '🛍 আড্ডা বাজার': '🛍 Adda Market',
+  '🤝 সেবা বোর্ড (রক্ত · হারানো · চাকরি)': '🤝 Service board (blood · lost & found · jobs)', '🏛 সরকারি সেবা': '🏛 Government services',
+  'নিরাপত্তা ও প্রাইভেসি': 'Security & privacy', '🔑 পাসওয়ার্ড বদলাও': '🔑 Change password',
+  '🎯 নতুন পোস্ট কে দেখবে (ডিফল্ট)': '🎯 Who can see new posts (default)', '🚫 ব্লক করা মানুষ': '🚫 Blocked people',
+  'ℹ️ আড্ডাBook সম্পর্কে': 'ℹ️ About AddaBook', '📵 সব ডিভাইস থেকে লগ আউট': '📵 Log out of all devices',
+  'সুবিধা ও নিরাপত্তা': 'Comfort & safety', '🌙 ডার্ক / লাইট থিম': '🌙 Dark / light theme', 'থিম বদলানো হয়েছে': 'Theme changed',
+  '🔠 সহজ মোড (বড় লেখা)': '🔠 Easy mode (big text)', '📶 ডেটা সেভার মোড (ছবি চাপ দিলে লোড)': '📶 Data saver mode (tap to load photos)',
+  '🧒 কিড মোড (ডেটিং লুকানো)': '🧒 Kid mode (dating hidden)', '🚪 লগ আউট': '🚪 Log out',
+  'নতুন পাসওয়ার্ড (কমপক্ষে ৬ অক্ষর)': 'New password (at least 6 characters)', 'আবার লেখো': 'Type it again', 'বদলে ফেলো': 'Change it',
+  'পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে': 'Password must be at least 6 characters', 'দুটো পাসওয়ার্ড মিলছে না': "The two passwords don't match",
+  'বদলানো যায়নি — আবার লগইন করে চেষ্টা করো': "Couldn't change it — log in again and try", 'পাসওয়ার্ড বদলানো হয়েছে 🔑': 'Password changed 🔑',
+  '🎯 নতুন পোস্ট কে দেখবে?': '🎯 Who can see new posts?',
+  'পোস্ট করার সময় এই অপশনটা আগেই বেছে থাকবে — চাইলে পোস্টের সময় বদলাতেও পারবে।': 'This option will be pre-selected when you post — you can still change it while posting.',
+  '🌍 সবাই': '🌍 Everyone', '👥 শুধু বন্ধুরা': '👥 Friends only', '💚 কাছের বন্ধুরা': '💚 Close friends', '⭐ ফলোয়াররা': '⭐ Followers',
+  'ডিফল্ট ঠিক হয়েছে ✓': 'Default set ✓', 'সবাই': 'Everyone', 'বন্ধুরা': 'Friends', 'কাছের বন্ধুরা': 'Close friends', 'ফলোয়াররা': 'Followers',
+  'কাউকে ব্লক করোনি': "You haven't blocked anyone", 'আনব্লক': 'Unblock', 'আনব্লক করা হয়েছে': 'Unblocked',
+  'আড্ডাBook — বন্ধুদের সাথে প্রতিদিনের আড্ডার নিজের জায়গা। বানিয়েছে': 'AddaBook — your own place for everyday adda with friends. Made by',
+  'নিরাপত্তা টিপস:': 'Safety tips:', 'পাসওয়ার্ড কারো সাথে শেয়ার করো না। কেনাবেচায় অগ্রিম টাকা পাঠানোর আগে যাচাই করো। সন্দেহজনক পোস্টে রিপোর্ট করো।': "Never share your password with anyone. Verify before sending money in advance for a purchase. Report suspicious posts.",
+  '📌 সংস্করণ: v2 (২০২৬)': '📌 Version: v2 (2026)',
+  'চালু হয়েছে': 'On', 'বন্ধ হয়েছে': 'Off',
+  /* saved / archived / viewers */
+  'সেভ করা পোস্ট': 'Saved posts', 'কোনো সেভ করা পোস্ট নেই': 'No saved posts', 'আর্কাইভে কিছু নেই': 'Nothing in the archive',
+  'এখনো কেউ তোমার প্রোফাইল দেখেনি': 'No one has viewed your profile yet',
+  /* creator */
+  'মোট পোস্ট': 'Total posts', 'মোট লাইক': 'Total likes', 'মোট মন্তব্য': 'Total comments', 'প্রোফাইল ভিউ': 'Profile views',
+  'দিনের স্ট্রিক': 'day streak', '📅 সাপ্তাহিক রিপোর্ট (গত ৭ দিন)': '📅 Weekly report (last 7 days)',
+  'এই সপ্তাহে তুমি': 'This week you posted', 'পোস্ট করেছ। মোট লাইক': 'posts. Total likes', ', মন্তব্য': ', comments',
+  'দারুণ চলছে — এভাবেই চালিয়ে যাও! 🎉': 'Going great — keep it up! 🎉', 'এই সপ্তাহে একটা পোস্ট করে শুরু করো!': 'Start this week with a post!',
+  '🏆 তোমার সেরা পোস্ট': '🏆 Your best post', 'টি': '',
+  /* albums */
+  '🖼 ছবির অ্যালবাম': '🖼 Photo albums', 'কোনো অ্যালবাম নেই': 'No albums', 'নতুন অ্যালবাম': 'New album',
+  'অ্যালবামের নাম (যেমন: কক্সবাজার ভ্রমণ)': "Album name (e.g. Cox's Bazar trip)", 'অ্যালবাম তৈরি ✓': 'Album created ✓',
+  'এখনো ছবি নেই': 'No photos yet',
+  /* pages */
+  '+ নতুন পেজ বানাও': '+ Create a new page', 'এখনো কোনো পেজ নেই': 'No pages yet', 'নতুন পেজ': 'New page', 'পেজ বানাও': 'Create page',
+  'পেজ সম্পর্কে': 'About the page', 'পেজ তৈরি ✓': 'Page created ✓', 'পেজে পোস্ট করো': 'Post to page', 'পেজের পোস্ট': 'Page post',
+  'এই পেজে এখনো পোস্ট নেই': 'No posts on this page yet',
+  /* events */
+  '+ নতুন ইভেন্ট': '+ New event', 'সামনে কোনো ইভেন্ট নেই — তুমিই একটা বানাও!': 'No upcoming events — create one!',
+  'নতুন ইভেন্ট': 'New event', 'জায়গা': 'Place', 'ইভেন্ট বানাও': 'Create event', 'ইভেন্ট তৈরি ✓': 'Event created ✓',
+  'নাম আর সময় দাও': 'Give a name and time', 'যাচ্ছ ✓': 'Going ✓', 'আমি যাব': "I'm going",
+  /* service board */
+  '🤝 সেবা বোর্ড': '🤝 Service board', '🩸 রক্ত': '🩸 Blood', '🔍 হারানো-প্রাপ্তি': '🔍 Lost & found', '💼 চাকরি': '💼 Jobs',
+  '+ নতুন পোস্ট দাও': '+ Add a post', '🩸 রক্তের আবেদন': '🩸 Blood request', 'রক্তের গ্রুপ দাও': 'Give the blood group',
+  'হারিয়ে গেছে': 'Lost', 'পাওয়া গেছে': 'Found', 'কী জিনিস?': 'What item?', 'কোন এলাকায়?': 'In which area?',
+  'জিনিসের নাম দাও': "Give the item's name", '💼 চাকরির পোস্ট': '💼 Job post', 'পদের নাম দাও': 'Give the job title',
+  'এই ক্যাটাগরিতে কিছু নেই': 'Nothing in this category', 'রক্ত দরকার': 'Blood needed',
+  /* market */
+  '+ বিজ্ঞাপন দাও': '+ Post an ad', '🛍 নতুন বিজ্ঞাপন': '🛍 New ad', 'জিনিসের নাম': "Item's name",
+  'বিক্রি': 'For sale', 'ফ্রি': 'Free', 'সেবা': 'Service', 'অফার': 'Offer', 'বই বিনিময়': 'Book exchange',
+  'দাম টাকায় (ফ্রি হলে ০ দাও)': 'Price in taka (put 0 if free)', 'বিজ্ঞাপন দাও': 'Post ad', 'বিজ্ঞাপন দেওয়া হয়েছে ✓': 'Ad posted ✓',
+  '⚠️ কেনাবেচায় নিজে যাচাই করে লেনদেন করো — অগ্রিম টাকা পাঠানোর আগে সাবধান।': '⚠️ Verify things yourself when buying or selling — be careful before sending money in advance.',
+  /* gov corners */
+  '🏛 সরকারি সেবা ও কর্নার': '🏛 Government services & corners', '🏛 সরকারি সেবার লিংক': '🏛 Government service links',
+  'সবগুলোই সরকারি অফিসিয়াল ওয়েবসাইট — লিংকে গিয়ে সরাসরি সেবা নাও।': 'All of these are official government websites — follow the link to get the service directly.',
+  'জাতীয় পোর্টাল (সব সেবা এক জায়গায়)': 'National portal (all services in one place)', 'জাতীয় পরিচয়পত্র (NID) সেবা': 'National ID (NID) services',
+  'জন্ম নিবন্ধন': 'Birth registration', 'ই-পাসপোর্ট': 'E-passport', 'শিক্ষা বোর্ডের ফলাফল': 'Education board results',
+  'বাংলাদেশ পুলিশ': 'Bangladesh Police', 'BRTA (ড্রাইভিং লাইসেন্স, গাড়ি)': 'BRTA (driving licence, vehicles)',
+  'বিদ্যুৎ বিল ও সেবা (DESCO)': 'Electricity bills & services (DESCO)',
+  '📚 পড়াশোনা কর্নার': '📚 Study corner', '🍳 রেসিপি কর্নার': '🍳 Recipe corner', '✈️ ভ্রমণ কর্নার': '✈️ Travel corner',
+  /* close friends / anon */
+  'পোস্ট করার সময় "কাছের বন্ধুরা" বেছে নিলে শুধু এরাই দেখবে।': 'If you choose "Close friends" while posting, only these people will see it.',
+  '🙈 বেনামি প্রশ্নের ইনবক্স': '🙈 Anonymous question inbox',
+  'বন্ধুরা তোমার প্রোফাইল থেকে বেনামে প্রশ্ন করতে পারে। উত্তর দিলে সেটা তোমার উত্তরের জায়গায় দেখা যাবে।': 'Friends can ask you anonymous questions from your profile. When you answer, it will appear in your answers.',
+  'এখনো কোনো বেনামি প্রশ্ন আসেনি': 'No anonymous questions yet', 'উত্তর লেখো...': 'Write an answer...', 'উত্তর দাও': 'Answer',
+  'উত্তর দেওয়া হয়েছে': 'Answered', '🙈 বেনামে প্রশ্ন করো': '🙈 Ask anonymously',
+  'তোমার নাম ওর কাছে যাবে না। ভদ্রভাবে প্রশ্ন করো।': "Your name won't be shown to them. Please ask politely.",
+  'তোমার প্রশ্ন...': 'Your question...', 'বেনামে প্রশ্ন পাঠানো হয়েছে 🙈': 'Anonymous question sent 🙈',
+  /* themes */
+  '১০০ টোকেনে প্রিমিয়াম থিম কিনলে তোমার প্রোফাইলের কভার জায়গায় সেই রঙ ঝলমল করবে। ব্যালেন্স:': "Buy a premium theme for 100 tokens and that colour will shine on your profile cover. Balance:",
+  '১০০ টোকেনে নাও': 'Get it for 100 tokens', 'থিম চালু হয়েছে 🎨': 'Theme applied 🎨', 'থিম সরানো হয়েছে': 'Theme removed',
+  '🌃 রাতের আকাশ': '🌃 Night sky', '🌇 সূর্যাস্ত': '🌇 Sunset', '🌊 সাগর': '🌊 Ocean', '🌲 বন': '🌲 Forest', '👑 রাজকীয়': '👑 Royal',
+  /* stories */
+  '📸 নতুন স্টোরি (২৪ ঘণ্টা থাকবে)': '📸 New story (stays for 24 hours)', '🖼 ছবি': '🖼 Photo', '🎤 ভয়েস': '🎤 Voice',
+  'লেখা (ঐচ্ছিক)': 'Text (optional)', 'স্টোরি দাও': 'Add story', 'ছবি, ভয়েস বা লেখা দাও': 'Add a photo, voice note or text',
+  'স্টোরি দেওয়া হয়েছে ✓': 'Story added ✓', 'স্টোরি হয়নি': "Story couldn't be added", 'স্টোরি মোছা হয়েছে': 'Story deleted',
+  '💬 রিপ্লাই দাও': '💬 Reply',
+  /* dating */
+  'মনের মানুষ 💘': 'Find your person 💘', 'আলাদা একটা জায়গা, যেখানে মনের মিল খুঁজে পাবে।': 'A separate little place to find someone who matches your heart.',
+  'শুধু ১৮+ দের জন্য · সম্পূর্ণ ঐচ্ছিক · ম্যাচ হলেই চ্যাট': '18+ only · Completely optional · Chat only after a match',
+  'তোমার ডেটিং প্রোফাইল': 'Your dating profile', 'আমার ডেটিং প্রোফাইল': 'My dating profile', 'আমার প্রোফাইল': 'My profile',
+  'তুমি —': 'You are —', 'খুঁজছ —': 'Looking for —', 'ছেলে': 'Male', 'মেয়ে': 'Female', 'সবাইকে': 'Everyone',
+  'পছন্দ বেছে নাও (ম্যাচ % এগুলো দিয়েই হিসাব হয়):': 'Pick your interests (match % is calculated from these):',
+  'প্রোফাইল চালু করো': 'Turn on profile', 'ডেটিং বন্ধ করো': 'Turn off dating',
+  'ডেটিং প্রোফাইল চালু হয়েছে 💘': 'Dating profile turned on 💘', 'ডেটিং প্রোফাইল বন্ধ করা হয়েছে': 'Dating profile turned off',
+  'ডেটিং শুধু ১৮ বছর বা তার বেশি বয়সীদের জন্য': 'Dating is only for people aged 18 or older',
+  'তোমার ম্যাচ': 'Your matches', 'এখনো ম্যাচ হয়নি — পছন্দের প্রোফাইলে ❤ দাও': 'No matches yet — tap ❤ on profiles you like',
+  'ম্যাচ হয়েছে! 💘 এখন চ্যাট করতে পারো': "It's a match! 💘 You can chat now",
+  'লাইক পাঠানো হয়েছে ❤': 'Like sent ❤', 'সুপার লাইক পাঠানো হয়েছে ★': 'Super like sent ★', 'মেসেজ 💘': 'Message 💘',
+  'এলাকার কাছাকাছি': 'Nearby', 'আপাতত আর কেউ নেই।': 'No one else right now.', 'পরে আবার দেখো — নতুন মানুষ যোগ দিলে এখানে আসবে।': 'Check back later — new people will appear here when they join.',
+  '🛡 ম্যাচ ছাড়া কেউ তোমাকে মেসেজ পাঠাতে পারবে না। বিরক্তিকর কাউকে ব্লক করো — সে আর তোমাকে দেখতে পাবে না।': "🛡 No one can message you without a match. Block anyone who bothers you — they won't be able to see you anymore.",
+  '🛡 নিরাপত্তা: কেউ বিরক্ত করলে সাথে সাথে ব্লক/রিপোর্ট করো। কারো সাথে দেখা করতে গেলে পাবলিক জায়গা বেছে নাও, বন্ধুকে জানিয়ে যাও। ব্যক্তিগত তথ্য (ঠিকানা, পাসওয়ার্ড) কাউকে দিও না।': "🛡 Safety: block/report anyone who bothers you right away. If you meet someone, choose a public place and tell a friend. Never give anyone personal information (address, password).",
+  'গান': 'Music', 'সিনেমা': 'Movies', 'ক্রিকেট': 'Cricket', 'বই পড়া': 'Reading', 'ভ্রমণ': 'Travel',
+  'রান্না': 'Cooking', 'ফটোগ্রাফি': 'Photography', 'কবিতা': 'Poetry', 'খেলাধুলা': 'Sports', 'প্রযুক্তি': 'Technology',
+  /* disabled-feature guards + misc */
+  'কুইজ আপাতত বন্ধ আছে': 'The quiz is off for now', 'এই অংশটা আপাতত বন্ধ আছে': 'This section is off for now',
+  'কিড মোডে এই অংশ বন্ধ আছে': 'This section is off in Kid mode',
+  'ভিডিও আপলোড হচ্ছে...': 'Uploading video...', 'মোছা হয়েছে': 'Deleted',
+  'এখনো কিছু নেই': 'Nothing here yet', 'এখনো কোনো ভিডিও পোস্ট নেই — পোস্ট করার সময় ভিডিও যোগ করো': 'No video posts yet — add a video when you post',
+  '🎬 ভিডিও': '🎬 Videos', 'প্রথম পোস্টটা তুমিই করো — পাবে ১৫ টোকেন!': 'Make the first post — you will get 15 tokens!',
+  'প্রথম মেসেজটা পাঠাও 👋': 'Send the first message 👋',
+  'আড্ডা': 'Adda',
+  'তুমি ＋': 'You ＋', '💘 মনের মানুষ': '💘 Dating', 'মনের মানুষ': 'Dating', 'নতুন পোস্ট': 'New post',
+  'অনুভূতি (ঐচ্ছিক)': 'Feeling (optional)', 'পরে প্রকাশ করতে চাইলে সময় দাও': 'Set a time to publish later',
+  'অপশন ১': 'Option 1', 'অপশন ৩ (ঐচ্ছিক)': 'Option 3 (optional)',
+  'বন্ধ': 'Off', 'চালু': 'On', 'সাধারণ': 'General', 'গ্রুপ': 'Groups',
+  '+১০': '+10', '+১৫': '+15', '+৩': '+3', '+১০০': '+100', '৫০': '50', '১০০': '100',
+  'মন্তব্য করো': 'Comment', 'নামের পাশে সোনালি ব্যাজ — তোমার আছে ✓': 'A golden badge next to your name — you have it ✓',
+  '। দারুণ চলছে — এভাবেই চালিয়ে যাও! 🎉': '. Going great — keep it up! 🎉',
+  '। এই সপ্তাহে একটা পোস্ট করে শুরু করো!': '. Start this week with a post!',
+  'পেজের নাম': 'Page name', 'ধরন (যেমন: ব্যবসা, কমিউনিটি, ব্লগ)': 'Category (e.g. business, community, blog)',
+  'ইভেন্টের নাম': 'Event name',
+  'রক্তের গ্রুপ (যেমন: B+)': 'Blood group (e.g. B+)', 'হাসপাতাল': 'Hospital', 'এলাকা': 'Area',
+  'পদের নাম': 'Job title', 'প্রতিষ্ঠান': 'Company',
+  '🔍 হারিয়ে গেছে:': '🔍 Lost:', '🔍 পাওয়া গেছে:': '🔍 Found:',
+  '+ নতুন অ্যালবাম': '+ New album', '+ ছবি যোগ করো': '+ Add photos',
+  'কাছের ✓ সরাও': 'Close friend ✓ Remove', 'কাছের করো': 'Make close friend',
+  'বয়স (১৮ বা তার বেশি)': 'Age (18 or older)',
+  'নতুন অভ্যাস': 'New habit', 'অভ্যাসের নাম (যেমন: ১০ পৃষ্ঠা বই পড়া)': 'Habit name (e.g. read 10 pages of a book)',
+  '🏛 জাতীয় পোর্টাল (সব সেবা এক জায়গায়)': '🏛 National portal (all services in one place)',
+  '🆔 জাতীয় পরিচয়পত্র (NID) সেবা': '🆔 National ID (NID) services', '📜 জন্ম নিবন্ধন': '📜 Birth registration',
+  '🛂 ই-পাসপোর্ট': '🛂 E-passport', '🎓 শিক্ষা বোর্ডের ফলাফল': '🎓 Education board results',
+  '👮 বাংলাদেশ পুলিশ': '👮 Bangladesh Police', '🚗 BRTA (ড্রাইভিং লাইসেন্স, গাড়ি)': '🚗 BRTA (driving licence, vehicles)',
+  '💡 বিদ্যুৎ বিল ও সেবা (DESCO)': '💡 Electricity bills & services (DESCO)'
+};
+
+/* Anchored patterns for composed UI strings. $1/$2… keep user values & numbers verbatim. */
+const I18N_VALS = { 'ছেলে': 'Male', 'মেয়ে': 'Female', 'অন্যান্য': 'Other', 'সবাইকে': 'Everyone',
+  'পুরুষ': 'Male', 'মহিলা': 'Female', 'অবিবাহিত': 'Single', 'সম্পর্কে আছি': 'In a relationship', 'বিবাহিত': 'Married', 'জটিল': "It's complicated", 'সাধারণ': 'General',
+  'গান': 'Music', 'সিনেমা': 'Movies', 'ক্রিকেট': 'Cricket', 'বই পড়া': 'Reading', 'ভ্রমণ': 'Travel',
+  'রান্না': 'Cooking', 'ফটোগ্রাফি': 'Photography', 'কবিতা': 'Poetry', 'খেলাধুলা': 'Sports', 'প্রযুক্তি': 'Technology' };
+const i18nVal = v => I18N_VALS[v] || v;
+const I18N_PATTERNS = [
+  [/^(\d+) লাইক$/, (m, n) => n + (n === '1' ? ' like' : ' likes')], [/^(\d+) মন্তব্য$/, (m, n) => n + (n === '1' ? ' comment' : ' comments')], [/^(\d+)টি ভোট$/, (m, n) => n + (n === '1' ? ' vote' : ' votes')],
+  [/^(\d+) অক্ষর$/, '$1 characters'], [/^(\d+) জন বন্ধু$/, '$1 friends'], [/^(\d+) জন$/, '$1 people'],
+  [/^(\d+) টোকেন$/, '$1 tokens'], [/^🪙 টোকেন: (\d+)$/, '🪙 Tokens: $1'],
+  [/^(\d+) টি পোস্ট$/, '$1 posts'], [/^(\d+)% ম্যাচ$/, '$1% match'],
+  [/^বাংলাদেশে ট্রেন্ডিং · (\d+)টি পোস্ট$/, 'Trending in Bangladesh · $1 posts'],
+  [/^(\d+) জন যাচ্ছে · আয়োজক: (.+)$/, '$1 going · Organizer: $2'],
+  [/^🎂 আজ (.+)-এর জন্মদিন!$/, "🎂 Today is $1's birthday!"],
+  [/^(.+)-এর সাথে (\d+) বছর বন্ধুত্ব!$/, 'Friends with $1 for $2 years!'],
+  [/^🔥 ধারাবাহিকতা: (\d+) দিন · মোট (\d+) বার$/, '🔥 Streak: $1 days · $2 times in total'],
+  [/^মনে কী চলছে, (.+)\?$/, "What's on your mind, $1?"],
+  [/^📅 যোগ দিয়েছেন (.+)$/, '📅 Joined $1'],
+  [/^বয়স: (\d+) · (.*) · খুঁজছ: (.*)$/, (m, a, g, l) => 'Age: ' + a + ' · ' + i18nVal(g) + ' · Looking for: ' + i18nVal(l)],
+  [/^পছন্দ: (.+)$/, (m, list) => 'Interests: ' + list.split(', ').map(i18nVal).join(', ')],
+  [/^([^\n]+) · গ্রুপ চ্যাট$/, '$1 · Group chat'],
+  [/^হয়নি: (.+)$/, 'Failed: $1'],
+  [/^(\d+) দিনের স্ট্রিক$/, '$1-day streak'],
+  [/^বন্ধুরা · (\d+)$/, 'Friends · $1'],
+  [/^🪙 (\d+) টোকেন · 🔥 (\d+) দিনের স্ট্রিক$/, '🪙 $1 tokens · 🔥 $2-day streak'],
+  [/^(\d+) দিন$/, (m, n) => n + (n === '1' ? ' day' : ' days')], [/^🔥 লগইন স্ট্রিক: (\d+) দিন$/, (m, n) => '🔥 Login streak: ' + n + (n === '1' ? ' day' : ' days')],
+  [/^(\d+)টি$/, '$1'],
+  [/^📍 থাকেন (.+)$/, '📍 Lives in $1'], [/^🎂 জন্মদিন (.+)$/, '🎂 Birthday $1'], [/^🏠 নিজ শহর (.+)$/, '🏠 Hometown $1'],
+  [/^❤️ (.+)$/, (m, v) => '❤️ ' + i18nVal(v)], [/^👤 (.+)$/, (m, v) => '👤 ' + i18nVal(v)],
+  [/^🗣 ভাষা (.+)$/, '🗣 Languages $1'], [/^🎨 শখ (.+)$/, '🎨 Hobbies $1'],
+  [/^(.+) রক্ত দরকার$/, '$1 blood needed'],
+  [/^(.+) · (\d+) ফলোয়ার$/, '$1 · $2 followers'],
+  [/^(.+) · (\d+) সদস্য$/, (m, c, n) => i18nVal(c) + ' · ' + n + ' members'],
+  [/^· (\d+) সদস্য$/, '· $1 members'],
+  [/^📍 (.+) · বন্ধু$/, '📍 $1 · Friend'], [/^📍 (.+) · তুমি$/, '📍 $1 · You']
+];
+/* Distinctive fragments for strings glued inside a larger text node. Longest first. */
+const I18N_FRAGS = [
+  ['জমা আছে — সবাই মিলে ভালো কাজে ব্যবহারের জন্য', 'saved — to be used together for a good cause'],
+  [' — তোমার পুরনো একটা পোস্ট আজকের দিনে হয়েছিল', ' — one of your old posts was made on this day'],
+  ['পোস্ট করেছ। মোট লাইক', 'posts. Total likes'], ['এই সপ্তাহে তুমি', 'This week you posted'],
+  [' · গ্রুপ চ্যাট', ' · Group chat'], ['অনুভূতি: ', 'feeling: '], ['দিনের স্ট্রিক', 'day streak'],
+  ['জন বন্ধু', 'friends'], ['টি পোস্ট', 'posts'], [', মন্তব্য', ', comments'], ['হয়নি: ', 'Failed: '],
+  ['যোগ দিয়েছেন', 'Joined'], ['টোকেন', 'tokens'], ['।', '.']
+].sort((a, b) => b[0].length - a[0].length);
+
+function i18nText(txt){
+  if (!txt || !/[\u0980-\u09FF]/.test(txt)) return txt;
+  const lead = /^\s*/.exec(txt)[0], trail = /\s*$/.exec(txt)[0];
+  const core = txt.trim();
+  if (!core) return txt;
+  let out = null;
+  if (Object.prototype.hasOwnProperty.call(I18N, core)) out = I18N[core];
+  if (out === null){
+    for (const [re, rep] of I18N_PATTERNS){ if (re.test(core)){ out = core.replace(re, rep); break; } }
+  }
+  if (out === null){
+    let t = core, changed = false;
+    for (const [f, r] of I18N_FRAGS){ if (t.includes(f)){ t = t.split(f).join(r); changed = true; } }
+    if (changed) out = t;
+  }
+  return out === null ? txt : lead + out + trail;
+}
+function i18nSkip(node){
+  const el = node.parentElement;
+  if (!el) return true;
+  if (el.closest('.ptext, .msg, script, style, textarea')) return true;
+  if (el.closest('#clist') && el.tagName === 'SMALL' && (el.getAttribute('style') || '').includes('display:block')) return true;
+  const st = node.nodeValue.trim(); if (el.closest('button.story') && st !== 'তুমি' && st !== 'তুমি ＋') return true;
+  return false;
+}
+function i18nNode(node){
+  if (i18nSkip(node)) return;
+  const v = i18nText(node.nodeValue);
+  if (v !== node.nodeValue) node.nodeValue = v;
+}
+function i18nAttrs(el){
+  for (const at of ['placeholder', 'aria-label', 'title']){
+    const v = el.getAttribute && el.getAttribute(at);
+    if (v){ const t = i18nText(v); if (t !== v) el.setAttribute(at, t); }
+  }
+}
+function i18nApply(root){
+  if (!root) return;
+  if (root.nodeType === 3){ i18nNode(root); return; }
+  if (root.nodeType !== 1) return;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+  nodes.forEach(n => {
+    const p = n.parentElement;
+    if (p && p.tagName === 'OPTION' && !p.hasAttribute('value')) p.setAttribute('value', n.nodeValue);
+    i18nNode(n);
+  });
+  i18nAttrs(root);
+  root.querySelectorAll('[placeholder],[aria-label],[title]').forEach(i18nAttrs);
+}
+if (LANG === 'en'){
+  const i18nObs = new MutationObserver(muts => {
+    for (const m of muts){
+      if (m.type === 'characterData') i18nNode(m.target);
+      (m.addedNodes || []).forEach(n => i18nApply(n));
+    }
+  });
+  const i18nStart = () => { document.title = 'AddaBook — everyday adda with friends'; document.documentElement.lang = 'en'; i18nApply(document.body); i18nObs.observe(document.body, { childList: true, subtree: true, characterData: true }); };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', i18nStart);
+  else i18nStart();
+}
+
 /* ---------- ICONS ---------- */
 const I = {
   search:'<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>',
@@ -89,7 +477,7 @@ function renderShell(){
       <button class="icb" onclick="go('notifs')" aria-label="নোটিফিকেশন">${I.bell}${unreadNotifs ? `<span class="dotn">${bn(unreadNotifs)}</span>` : ''}</button>
       <button class="icb" onclick="go('chat')" aria-label="চ্যাট">${I.msg}</button>
     </div></div>`;
-  const EN = localStorage.getItem('adda-lang') === 'en';
+  const EN = LANG === 'en';
   const kid = localStorage.getItem('adda-kid') === '1';
   const mid = kid ? ['trending', EN ? 'Explore' : 'আবিষ্কার', I.fire] : ['dating', EN ? 'Dating' : 'মনের মানুষ', I.heart];
   const items = EN ? [['feed','Home',I.home],['friends','Friends',I.users],mid,['chat','Chat',I.msg],['profile','Profile',I.user]]
@@ -372,7 +760,7 @@ async function renderEvents(){
   if (el) el.innerHTML = (data || []).length ? data.map(e => {
     const going = (rsvps || []).filter(r => r.event_id === e.id);
     const mine = going.some(r => r.user_id === me.id);
-    return `<div class="card"><b style="font-size:15.5px">🎉 ${esc(e.title)}</b><br><small style="color:var(--mut)">🗓 ${new Date(e.starts_at).toLocaleString('bn-BD')} ${e.place ? '· 📍 ' + esc(e.place) : ''}</small>
+    return `<div class="card"><b style="font-size:15.5px">🎉 ${esc(e.title)}</b><br><small style="color:var(--mut)">🗓 ${new Date(e.starts_at).toLocaleString(LANG === 'en' ? 'en-US' : 'bn-BD')} ${e.place ? '· 📍 ' + esc(e.place) : ''}</small>
     <div style="margin-top:8px;display:flex;gap:8px;align-items:center"><button class="btn ${mine ? 'ghost' : ''} sm" onclick="toggleRsvp('${e.id}',${mine})">${mine ? 'যাচ্ছ ✓' : 'আমি যাব'}</button><small style="color:var(--mut)">${bn(going.length)} জন যাচ্ছে · আয়োজক: ${esc(prof(e.created_by).name)}</small></div></div>`;
   }).join('') : '<div class="card empty">সামনে কোনো ইভেন্ট নেই — তুমিই একটা বানাও!</div>';
 }
@@ -1274,7 +1662,7 @@ async function renderProfile(uid){
       ${p.bio ? `<p style="font-size:14px;line-height:1.65;margin-bottom:8px">${esc(p.bio)}</p>` : ''}
       ${[['💼', p.work], ['🎓', p.education], ['📍 থাকেন', p.city], ['🏠 নিজ শহর', p.hometown], ['❤️', p.relationship], ['🎂 জন্মদিন', p.birthday], ['👤', p.gender], ['🗣 ভাষা', p.languages], ['🎨 শখ', p.hobbies]].filter(r => r[1]).map(r => `<div style="font-size:13.5px;padding:3px 0;color:var(--ink2)">${r[0]} ${esc(r[1])}</div>`).join('')}
       ${p.website ? `<div style="font-size:13.5px;padding:3px 0">🌐 <a class="tag" target="_blank" rel="noopener" href="${esc(/^https?:\/\//i.test(p.website) ? p.website : 'https://' + p.website)}">${esc(p.website)}</a></div>` : ''}
-      <div style="font-size:13.5px;padding:3px 0;color:var(--ink2)">📅 যোগ দিয়েছেন ${new Date(p.created_at).toLocaleDateString('bn-BD', { month: 'long', year: 'numeric' })}</div>
+      <div style="font-size:13.5px;padding:3px 0;color:var(--ink2)">📅 যোগ দিয়েছেন ${new Date(p.created_at).toLocaleDateString(LANG === 'en' ? 'en-US' : 'bn-BD', { month: 'long', year: 'numeric' })}</div>
       ${mine && !p.work && !p.education && !p.hometown ? `<button class="btn ghost sm" style="margin-top:8px" onclick="editProfile()">+ পরিচিতি যোগ করো</button>` : ''}
     </div>
     <div class="seclabel">ছবি</div><div id="profPhotos" style="padding:0 12px"><div class="empty">লোড হচ্ছে...</div></div>
@@ -1638,7 +2026,7 @@ async function renderSettings(){
       ${tg('adda-big', '🔠 সহজ মোড (বড় লেখা)')}
       ${tg('adda-saver', '📶 ডেটা সেভার মোড (ছবি চাপ দিলে লোড)')}
       ${tg('adda-kid', '🧒 কিড মোড (ডেটিং লুকানো)')}
-      <button class="menu-item" onclick="toggleLang()">🌐 ভাষা: ${localStorage.getItem('adda-lang') === 'en' ? 'English (nav)' : 'বাংলা'}</button>
+      <button class="menu-item" onclick="toggleLang()">🌐 ${LANG === 'en' ? 'Language: English' : 'ভাষা: বাংলা'}</button>
       <button class="menu-item" style="color:var(--danger)" onclick="doLogout()">🚪 লগ আউট</button>
     </div>
     <p style="text-align:center;color:var(--faint);font-size:11.5px;padding:16px 0 4px">আড্ডাBook · LIMON Labs</p></div>`;
@@ -1691,10 +2079,8 @@ function aboutSheet(){
     📌 সংস্করণ: v2 (২০২৬)</p>`);
 }
 function toggleLang(){
-  const en = localStorage.getItem('adda-lang') === 'en';
-  localStorage.setItem('adda-lang', en ? 'bn' : 'en');
-  toast(en ? 'ভাষা: বাংলা' : 'Language: English (navigation)');
-  renderSettings(); renderShell();
+  localStorage.setItem('adda-lang', LANG === 'en' ? 'bn' : 'en');
+  location.reload();
 }
 
 /* ---------- TOKENS ---------- */
