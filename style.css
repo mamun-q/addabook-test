@@ -218,8 +218,11 @@ html.dark .annbar{background:#2A1A08;color:#FDBA74}
 .chatfoot svg{stroke:var(--mut)}
 .quickbtn{background:none;border:none;font-size:23px;line-height:1;padding:0 1px;flex:none;cursor:pointer}
 .quickbtn:active{transform:scale(1.25)}
-.chatbar{gap:7px}
-.chatbar input{min-width:0}
+.chatbar{gap:5px;padding:10px}
+.chatbar .icb{width:33px;height:33px}
+.chatbar input{min-width:0;padding:11px 12px}
+input[type=file]::file-selector-button{font-family:inherit;font-size:12.5px;font-weight:600;color:var(--ink2);background:var(--card);border:1px solid var(--line);border-radius:999px;padding:6px 13px;margin-right:8px;cursor:pointer}
+.sheetbox label input[type=file]{flex:1;min-width:0}
 
 /* chat thread: full-height column — composer pinned to the bottom, messages scroll inside */
 .chatview{display:flex;flex-direction:column;height:calc(100dvh - 57px - 94px);padding-bottom:0}

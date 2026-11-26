@@ -887,7 +887,7 @@ async function renderAlbums(uid = null){
     <div id="albumList" style="padding:12px"><div class="empty">লোড হচ্ছে...</div></div></div>`;
   const { data } = await sb.from('albums').select('*').eq('user_id', owner).order('created_at', { ascending: false });
   const el = document.getElementById('albumList');
-  if (el) el.innerHTML = (data || []).length ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">${data.map(a => `<button class="card" style="margin:0;text-align:left;cursor:pointer" onclick="openAlbum('${a.id}')"><b>${ic('folder', 15)} ${esc(a.name)}</b><br><small style="color:var(--mut)">${timeAgo(a.created_at)}</small></button>`).join('')}</div>` : '<div class="card empty">কোনো অ্যালবাম নেই</div>';
+  if (el) el.innerHTML = (data || []).length ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">${data.map(a => `<button class="card" style="margin:0;text-align:left;cursor:pointer" onclick="openAlbum('${a.id}')"><b>${ic('folder', 15)} ${esc(a.name)}</b><br><small style="color:var(--mut)">${timeAgo(a.created_at)}</small></button>`).join('')}</div>` : '<div class="card empty" style="margin:0">কোনো অ্যালবাম নেই</div>';
 }
 function createAlbumSheet(){
   sheet(`<h3>নতুন অ্যালবাম</h3><input class="field" id="albTitle" placeholder="অ্যালবামের নাম (যেমন: কক্সবাজার ভ্রমণ)"><button class="btn block" onclick="createAlbum()">বানাও</button>`);
@@ -962,7 +962,7 @@ async function renderEvents(){
   curView = 'events'; renderShell();
   view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">${ic('calendar', 19)} ইভেন্ট</div>
     <div style="padding:12px 12px 0"><button class="btn block" onclick="createEventSheet()">+ নতুন ইভেন্ট</button></div>
-    <div id="eventList" style="padding:12px"><div class="empty">লোড হচ্ছে...</div></div></div>`;
+    <div id="eventList" style="padding:0 0 12px"><div class="empty">লোড হচ্ছে...</div></div></div>`;
   const { data } = await sb.from('events').select('*').gte('starts_at', new Date(Date.now() - 864e5).toISOString()).order('starts_at').limit(40);
   const ids = (data || []).map(e => e.id);
   const { data: rsvps } = ids.length ? await sb.from('event_rsvps').select('*').in('event_id', ids) : { data: [] };
@@ -998,8 +998,8 @@ async function renderService(tab = 'blood'){
   curView = 'service'; serviceTab = tab; renderShell();
   view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">${ic('hand', 19)} সেবা বোর্ড</div>
     <div class="seg"><button class="${tab === 'blood' ? 'on' : ''}" onclick="renderService('blood')">${ic('droplet', 15)} রক্ত</button><button class="${tab === 'lost' ? 'on' : ''}" onclick="renderService('lost')">${ic('search', 15)} হারানো-প্রাপ্তি</button><button class="${tab === 'jobs' ? 'on' : ''}" onclick="renderService('jobs')">${ic('briefcase', 15)} চাকরি</button></div>
-    <div style="padding:0 12px"><button class="btn block" onclick="serviceAddSheet('${tab}')">+ নতুন পোস্ট দাও</button></div>
-    <div id="svcList" style="padding:12px"><div class="empty">লোড হচ্ছে...</div></div></div>`;
+    <div style="padding:12px 12px 0"><button class="btn block" onclick="serviceAddSheet('${tab}')">+ নতুন পোস্ট দাও</button></div>
+    <div id="svcList" style="padding:0 0 12px"><div class="empty">লোড হচ্ছে...</div></div></div>`;
   const table = tab === 'blood' ? 'blood_requests' : tab === 'lost' ? 'lost_items' : 'jobs';
   const { data } = await sb.from(table).select('*').order('created_at', { ascending: false }).limit(40);
   await cacheProfiles((data || []).map(r => r.user_id));
@@ -1043,7 +1043,7 @@ async function renderMarket(cat = 'সব'){
   const { data } = await q;
   await cacheProfiles((data || []).map(r => r.user_id));
   const el = document.getElementById('mktList');
-  if (el) el.innerHTML = (data || []).length ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">${data.map(l => `<div class="card" style="margin:0">${l.image_url ? `<img src="${esc(l.image_url)}" style="width:100%;border-radius:10px;aspect-ratio:1.2;object-fit:cover">` : ''}<b style="font-size:14.5px">${esc(l.title)}</b><br><span class="pill">${esc(l.category)}</span> <b style="color:var(--acc)">${l.price ? '৳' + bn(l.price) : 'ফ্রি'}</b><br><small style="color:var(--mut)">${esc(prof(l.user_id).name)}</small><br>${l.user_id !== me.id ? `<button class="btn sm" style="margin-top:7px" onclick="startChat('${l.user_id}')">মেসেজ করো</button>` : `<button class="btn ghost sm" style="margin-top:7px" onclick="deleteListing('${l.id}')">মুছে ফেলো</button>`}</div>`).join('')}</div>` : '<div class="card empty">এই ক্যাটাগরিতে কিছু নেই</div>';
+  if (el) el.innerHTML = (data || []).length ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">${data.map(l => `<div class="card" style="margin:0">${l.image_url ? `<img src="${esc(l.image_url)}" style="width:100%;border-radius:10px;aspect-ratio:1.2;object-fit:cover">` : ''}<b style="font-size:14.5px">${esc(l.title)}</b><br><span class="pill">${esc(l.category)}</span> <b style="color:var(--acc)">${l.price ? '৳' + bn(l.price) : 'ফ্রি'}</b><br><small style="color:var(--mut)">${esc(prof(l.user_id).name)}</small><br>${l.user_id !== me.id ? `<button class="btn sm" style="margin-top:7px" onclick="startChat('${l.user_id}')">মেসেজ করো</button>` : `<button class="btn ghost sm" style="margin-top:7px" onclick="deleteListing('${l.id}')">মুছে ফেলো</button>`}</div>`).join('')}</div>` : '<div class="card empty" style="margin:0">এই ক্যাটাগরিতে কিছু নেই</div>';
 }
 function listingSheet(){
   sheet(`<h3>${ic('bag', 18)} নতুন বিজ্ঞাপন</h3><input class="field" id="lsTitle" placeholder="জিনিসের নাম"><select class="field" id="lsCat"><option>বিক্রি</option><option>ফ্রি</option><option>সেবা</option><option>অফার</option><option>বই বিনিময়</option></select><input class="field" id="lsPrice" type="number" min="0" placeholder="দাম টাকায় (ফ্রি হলে ০ দাও)"><label style="font-size:13.5px;color:var(--mut)">ছবি <input type="file" id="lsImg" accept="image/*" style="font-size:12px"></label><button class="btn block" style="margin-top:10px" onclick="addListing()">বিজ্ঞাপন দাও</button>`);
@@ -1086,7 +1086,7 @@ async function renderHabits(){
   curView = 'habits'; renderShell();
   view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">${ic('sprout', 19)} অভ্যাস ট্র্যাকার</div>
     <div style="padding:12px 12px 0"><button class="btn block" onclick="habitSheet()">+ নতুন অভ্যাস</button></div>
-    <div id="habitList" style="padding:12px"><div class="empty">লোড হচ্ছে...</div></div></div>`;
+    <div id="habitList" style="padding:0 0 12px"><div class="empty">লোড হচ্ছে...</div></div></div>`;
   const { data: habits } = await sb.from('habits').select('*').eq('user_id', me.id).order('created_at');
   const todayStr = new Date().toISOString().slice(0, 10);
   const { data: logs } = await sb.from('habit_logs').select('*').eq('user_id', me.id).gte('day', new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10));
@@ -1124,7 +1124,7 @@ async function renderPets(){
   const { data } = await sb.from('pets').select('*').order('created_at', { ascending: false }).limit(40);
   await cacheProfiles((data || []).map(p => p.user_id));
   const el = document.getElementById('petList');
-  if (el) el.innerHTML = (data || []).length ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">${data.map(p => `<div class="card" style="margin:0;text-align:center">${p.photo_url ? `<img src="${esc(p.photo_url)}" style="width:100%;border-radius:12px;aspect-ratio:1;object-fit:cover">` : '<div style="color:var(--acc)">' + ic('paw', 44) + '</div>'}<b>${esc(p.name)}</b><br><small style="color:var(--mut)">${esc(p.kind || '')}</small><br><small style="color:var(--faint)">মালিক: ${esc(prof(p.user_id).name)}</small>${p.user_id === me.id ? `<br><button class="btn ghost sm" style="margin-top:6px" onclick="deletePet('${p.id}')">মুছো</button>` : ''}</div>`).join('')}</div>` : '<div class="card empty">এখনো কোনো পোষা প্রাণী যোগ হয়নি</div>';
+  if (el) el.innerHTML = (data || []).length ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">${data.map(p => `<div class="card" style="margin:0;text-align:center">${p.photo_url ? `<img src="${esc(p.photo_url)}" style="width:100%;border-radius:12px;aspect-ratio:1;object-fit:cover">` : '<div style="color:var(--acc)">' + ic('paw', 44) + '</div>'}<b>${esc(p.name)}</b><br><small style="color:var(--mut)">${esc(p.kind || '')}</small><br><small style="color:var(--faint)">মালিক: ${esc(prof(p.user_id).name)}</small>${p.user_id === me.id ? `<br><button class="btn ghost sm" style="margin-top:6px" onclick="deletePet('${p.id}')">মুছো</button>` : ''}</div>`).join('')}</div>` : '<div class="card empty" style="margin:0">এখনো কোনো পোষা প্রাণী যোগ হয়নি</div>';
 }
 function petSheet(){
   sheet(`<h3>${ic('paw', 18)} পোষা প্রাণী</h3><input class="field" id="ptName" placeholder="নাম (যেমন: মিনি)"><input class="field" id="ptKind" placeholder="কী প্রাণী? (বিড়াল/কুকুর/পাখি...)"><label style="font-size:13.5px;color:var(--mut)">ছবি <input type="file" id="ptImg" accept="image/*" style="font-size:12px"></label><button class="btn block" style="margin-top:10px" onclick="addPet()">যোগ করো</button>`);
@@ -1154,7 +1154,7 @@ async function renderAnon(){
   curView = 'anon'; renderShell();
   view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">${ic('eyeOff', 19)} বেনামি প্রশ্নের ইনবক্স</div>
     <p style="padding:6px 16px 0;font-size:13px;color:var(--mut)">বন্ধুরা তোমার প্রোফাইল থেকে বেনামে প্রশ্ন করতে পারে। উত্তর দিলে সেটা তোমার উত্তরের জায়গায় দেখা যাবে।</p>
-    <div id="anonList" style="padding:12px"><div class="empty">লোড হচ্ছে...</div></div></div>`;
+    <div id="anonList" style="padding:0 0 12px"><div class="empty">লোড হচ্ছে...</div></div></div>`;
   const { data } = await sb.from('anon_questions').select('*').eq('target', me.id).order('created_at', { ascending: false }).limit(40);
   const el = document.getElementById('anonList');
   if (el) el.innerHTML = (data || []).length ? data.map(q => `<div class="card"><p style="font-size:14.5px">❓ ${esc(q.body)}</p><small style="color:var(--faint)">${timeAgo(q.created_at)}</small>${q.answer ? `<p style="margin-top:8px;background:var(--bg2,#F5F3FF);padding:9px 11px;border-radius:10px;font-size:14px">💬 তোমার উত্তর: ${esc(q.answer)}</p>` : `<div style="display:flex;gap:8px;margin-top:9px"><input class="field" style="margin:0;flex:1" id="ans-${q.id}" placeholder="উত্তর লেখো..."><button class="btn sm" onclick="answerAnon('${q.id}')">উত্তর দাও</button></div>`}</div>`).join('') : '<div class="card empty">এখনো কোনো বেনামি প্রশ্ন আসেনি</div>';
@@ -1192,8 +1192,8 @@ async function renderThemes(){
   curView = 'themes'; renderShell();
   view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">${ic('palette', 19)} প্রোফাইল থিম</div>
     <p style="padding:6px 16px 0;font-size:13px;color:var(--mut)">১০০ টোকেনে প্রিমিয়াম থিম কিনলে তোমার প্রোফাইলের কভার জায়গায় সেই রঙ ঝলমল করবে। ব্যালেন্স: <b>${bn(me.tokens)}</b></p>
-    <div style="padding:12px">${PROFILE_THEMES.map(([id, name, grad]) => `<div class="card" style="overflow:hidden"><div style="height:64px;border-radius:12px;background:${grad}"></div><div style="display:flex;align-items:center;margin-top:10px"><b style="flex:1">${name}</b>${me.theme === id ? '<span class="pill">চালু আছে ✓</span>' : `<button class="btn sm" onclick="buyTheme('${id}')">১০০ টোকেনে নাও</button>`}</div></div>`).join('')}
-    ${me.theme ? `<button class="btn ghost block" onclick="buyTheme('')">থিম সরিয়ে দাও</button>` : ''}</div></div>`;
+    <div style="padding:0 0 12px">${PROFILE_THEMES.map(([id, name, grad]) => `<div class="card" style="overflow:hidden"><div style="height:64px;border-radius:12px;background:${grad}"></div><div style="display:flex;align-items:center;margin-top:10px"><b style="flex:1">${name}</b>${me.theme === id ? '<span class="pill">চালু আছে ✓</span>' : `<button class="btn sm" onclick="buyTheme('${id}')">১০০ টোকেনে নাও</button>`}</div></div>`).join('')}
+    ${me.theme ? `<button class="btn ghost block" style="margin:12px 12px 0" onclick="buyTheme('')">থিম সরিয়ে দাও</button>` : ''}</div></div>`;
 }
 async function buyTheme(themeId){
   if (!themeId) { await sb.from('profiles').update({ theme: '' }).eq('id', me.id); me.theme = ''; toast('থিম সরানো হয়েছে'); renderThemes(); return; }
@@ -1566,8 +1566,8 @@ function openComposer(groupId = null, pageId = null){
       <input class="field poll-opt" placeholder="অপশন ৩ (ঐচ্ছিক)"><input class="field poll-opt" placeholder="অপশন ৪ (ঐচ্ছিক)">
     </div>
     <div style="display:flex;gap:8px">
-      <button class="btn ghost" style="flex:1" onclick="document.getElementById('pollBox').style.display='block'">${ic('chart', 15)} পোল যোগ করো</button>
-      <button class="btn" style="flex:2" onclick="submitPost(${groupId ? `'${groupId}'` : 'null'},${pageId ? `'${pageId}'` : 'null'})">পোস্ট করো</button>
+      <button class="btn ghost" style="flex:1.2;white-space:nowrap" onclick="document.getElementById('pollBox').style.display='block'">${ic('chart', 15)} পোল যোগ করো</button>
+      <button class="btn" style="flex:1.5;white-space:nowrap" onclick="submitPost(${groupId ? `'${groupId}'` : 'null'},${pageId ? `'${pageId}'` : 'null'})">পোস্ট করো</button>
     </div>`);
   $('#postBody').focus();
   const pa = document.getElementById('postAudience');
