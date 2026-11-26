@@ -2708,10 +2708,9 @@ async function createGroupWith(){
   const name = $('#gwName').value.trim(); if (!name) { toast('গ্রুপের নাম দাও'); return; }
   const picks = [...document.querySelectorAll('.gwPick:checked')].map(x => x.value).filter(id => id !== me.id);
   if (!picks.length) { toast('কমপক্ষে একজন বন্ধু বাছো'); return; }
-  const { data: g, error } = await sb.from('groups').insert({ name, category: '', about: '', created_by: me.id }).select().single();
-  if (error) { toast('গ্রুপ তৈরি হয়নি'); return; }
-  await sb.from('group_members').insert([{ group_id: g.id, user_id: me.id }, ...picks.map(uid => ({ group_id: g.id, user_id: uid }))]);
-  closeSheet(); toast('গ্রুপ তৈরি হয়েছে 🎉'); openGroupChat(g.id);
+  const { data: gid, error } = await sb.rpc('rpc_create_group_with', { p_name: name, p_members: picks });
+  if (error || !gid) { toast('গ্রুপ তৈরি হয়নি'); return; }
+  closeSheet(); toast('গ্রুপ তৈরি হয়েছে 🎉'); openGroupChat(gid);
 }
 async function toggleChatArchive(){
   const { conv, myRow } = chatMeta; if (!myRow) { toast('করা যায়নি'); return; }
