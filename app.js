@@ -174,6 +174,7 @@ async function renderArchived(){
   if (el) el.innerHTML = posts.length ? posts.map(postCard).join('') : '<div class="card empty">আর্কাইভে কিছু নেই</div>';
 }
 async function renderVideos(){
+  toast('এই অংশটা আপাতত বন্ধ আছে'); go('feed'); return;
   curView = 'videos'; renderShell();
   view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">🎬 ভিডিও</div><div id="vidList"><div class="empty">লোড হচ্ছে...</div></div></div>`;
   const { data } = await sb.from('posts').select('*').not('video_url', 'is', null).neq('video_url', '').order('created_at', { ascending: false }).limit(30);
@@ -225,6 +226,7 @@ async function answerQuiz(idx, doneKey){
   }
 }
 async function renderLeaderboard(){
+  toast('এই অংশটা আপাতত বন্ধ আছে'); go('feed'); return;
   curView = 'leaderboard'; renderShell();
   view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">🏆 লিডারবোর্ড (টোকেন)</div><div class="card" id="lbList" style="padding:6px 15px"><div class="empty">লোড হচ্ছে...</div></div></div>`;
   const { data } = await sb.from('profiles').select('*').order('tokens', { ascending: false }).limit(20);
@@ -233,6 +235,7 @@ async function renderLeaderboard(){
   if (el) el.innerHTML = (data || []).map((p, i) => `<div class="row">${'<b style="width:26px;text-align:center">' + (i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : bn(i + 1)) + '</b>'}${avatar(p, 38, 14)}<div style="flex:1"><b>${esc(p.name)}</b>${badges(p)}</div><b style="color:var(--acc)">${bn(p.tokens)}</b></div>`).join('');
 }
 async function renderAchievements(){
+  toast('এই অংশটা আপাতত বন্ধ আছে'); go('feed'); return;
   curView = 'achieve'; renderShell();
   view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">🎖 তোমার অর্জন</div><div id="achList"><div class="empty">লোড হচ্ছে...</div></div></div>`;
   const [posts, likesGot] = await Promise.all([
@@ -478,6 +481,7 @@ function renderGov(){
 
 /* ---------- V2: HABITS / PETS / ANON / CLOSE FRIENDS ---------- */
 async function renderHabits(){
+  toast('এই অংশটা আপাতত বন্ধ আছে'); go('feed'); return;
   curView = 'habits'; renderShell();
   view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">🌱 অভ্যাস ট্র্যাকার</div>
     <div style="padding:12px 12px 0"><button class="btn block" onclick="habitSheet()">+ নতুন অভ্যাস</button></div>
@@ -511,6 +515,7 @@ async function logHabit(habitId){
   toast('দারুণ! আজকের অভ্যাস সম্পন্ন 🌱'); renderHabits();
 }
 async function renderPets(){
+  toast('এই অংশটা আপাতত বন্ধ আছে'); go('feed'); return;
   curView = 'pets'; renderShell();
   view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">🐾 পোষা প্রাণীর প্রোফাইল</div>
     <div style="padding:12px 12px 0"><button class="btn block" onclick="petSheet()">+ আমার পোষা প্রাণী যোগ করো</button></div>
@@ -1566,12 +1571,7 @@ async function renderSettings(){
     </div>
     <div class="seclabel">মজা ও শেখা</div>
     <div class="card" style="padding:6px 15px">
-      <button class="menu-item" onclick="go('leaderboard')">🏆 লিডারবোর্ড</button>
-      <button class="menu-item" onclick="go('achieve')">🎖 আমার অর্জন</button>
       <button class="menu-item" onclick="go('creator')">📊 ক্রিয়েটর ড্যাশবোর্ড</button>
-      <button class="menu-item" onclick="go('habits')">🌱 অভ্যাস ট্র্যাকার</button>
-      <button class="menu-item" onclick="go('pets')">🐾 পোষা প্রাণী</button>
-      <button class="menu-item" onclick="go('videos')">🎬 ভিডিও</button>
       <button class="menu-item" onclick="go('themes')">🎨 প্রোফাইল থিম</button>
     </div>
     <div class="seclabel">কমিউনিটি</div>
