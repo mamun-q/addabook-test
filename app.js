@@ -1398,8 +1398,8 @@ async function toggleLike(postId, btn){
 }
 async function toggleSave(postId, btn){
   const { data: existing } = await sb.from('saves').select('post_id').eq('post_id', postId).eq('user_id', me.id).maybeSingle();
-  if (existing) { await sb.from('saves').delete().eq('post_id', postId).eq('user_id', me.id); toast('সেভ সরানো হয়েছে'); }
-  else { await sb.from('saves').insert({ post_id: postId, user_id: me.id }); toast('পোস্ট সেভ হয়েছে'); }
+  if (existing) { const { error } = await sb.from('saves').delete().eq('post_id', postId).eq('user_id', me.id); if (error) { toast('সেভ সরানো যায়নি'); return; } toast('সেভ সরানো হয়েছে'); }
+  else { const { error } = await sb.from('saves').insert({ post_id: postId, user_id: me.id }); if (error) { toast('পোস্ট সেভ হয়নি'); return; } toast('পোস্ট সেভ হয়েছে'); }
   refreshPost(postId);
 }
 async function refreshPost(postId){
