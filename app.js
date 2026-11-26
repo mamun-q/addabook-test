@@ -54,7 +54,7 @@ function toast(msg){
   document.body.appendChild(t); setTimeout(() => t.remove(), 2600);
 }
 function sheet(html){
-  $('#overlay').innerHTML = `<div class="sheet" onclick="if(event.target===this)closeSheet()"><div class="sheetbox"><button onclick="closeSheet()" aria-label="বন্ধ করো" style="float:right;border:none;background:var(--line2);color:var(--ink2);width:30px;height:30px;border-radius:50%;font-size:15px;cursor:pointer;line-height:1">✕</button>${html}</div></div>`;
+  $('#overlay').innerHTML = `<div class="sheet" onclick="if(event.target===this)closeSheet()"><div class="sheetbox"><button onclick="closeSheet()" aria-label="বন্ধ করো" style="float:right;border:none;background:var(--line2);color:var(--ink2);width:30px;height:30px;border-radius:50%;font-size:15px;cursor:pointer;line-height:1">${ic('x', 14)}</button>${html}</div></div>`;
 }
 function closeSheet(){ $('#overlay').innerHTML = ''; }
 function linkTags(text){
@@ -80,6 +80,47 @@ function prof(id){ return profilesCache[id] || { id, name: 'ব্যবহা�
    bodies are skipped, stored values are never read from the DOM, and <option> elements
    keep their original Bangla value attribute so form submissions stay identical. */
 const I18N = {
+  'সেবা বোর্ড': 'Service board', 'বাজার': 'Market', 'ইভেন্ট': 'Events', 'ভিডিও যোগ করো': 'Add video',
+  'কোলাজ বানাও (২-৪টি ছবি)': 'Make a collage (2-4 photos)', 'পোল যোগ করো': 'Add a poll',
+  'সবাই দেখবে': 'Everyone can see', 'শুধু বন্ধুরা': 'Friends only', 'লিংক কপি': 'Copy link',
+  'কে দেখল': 'Who viewed', 'উপহার (১০০)': 'Gift (100)', 'বেনামে প্রশ্ন': 'Ask anonymously',
+  'পোস্ট এডিট করো': 'Edit post', 'পিন সরাও': 'Unpin', 'প্রোফাইলে পিন করো': 'Pin to profile',
+  'আর্কাইভ থেকে ফেরাও': 'Restore from archive', 'আর্কাইভ করো': 'Archive',
+  'পোস্ট পড়ে শোনাও': 'Read post aloud', 'ইংরেজিতে অনুবাদ': 'Translate to English',
+  'বুস্ট করো (৫০ টোকেন, ২৪ ঘণ্টা)': 'Boost (50 tokens, 24 hours)',
+  'এই পোস্ট বুস্ট অবস্থায় আছে': 'This post is boosted', 'পোস্ট মুছে ফেলো': 'Delete post',
+  'রিপোর্ট করো': 'Report', 'এই ব্যবহারকারীকে ব্লক করো': 'Block this user',
+  'রক্ত': 'Blood', 'হারানো-প্রাপ্তি': 'Lost & found', 'চাকরি': 'Jobs',
+  'রক্তের আবেদন': 'Blood request', 'চাকরির পোস্ট': 'Job post', 'নতুন বিজ্ঞাপন': 'New listing',
+  'সরকারি সেবার লিংক': 'Government service links', 'পড়াশোনা কর্নার': 'Study corner',
+  'রেসিপি কর্নার': 'Recipe corner', 'ভ্রমণ কর্নার': 'Travel corner',
+  'ছবির অ্যালবাম': 'Photo albums', 'আমার অ্যালবাম': 'My albums', 'টোকেন ওয়ালেট': 'Token wallet',
+  'লগইন স্ট্রিক': 'Login streak', 'আর্কাইভ করা পোস্ট': 'Archived posts',
+  'প্রোফাইল দর্শক': 'Profile viewers', 'বেনামি প্রশ্নের ইনবক্স': 'Anonymous question inbox',
+  'আমার ডেটা ডাউনলোড': 'Download my data', 'ক্রিয়েটর ড্যাশবোর্ড': 'Creator dashboard',
+  'আড্ডা বাজার': 'Adda Market', 'সেবা বোর্ড (রক্ত · হারানো · চাকরি)': 'Service board (blood · lost · jobs)',
+  'সরকারি সেবা ও কর্নার': 'Government services & corners', 'পাসওয়ার্ড বদলাও': 'Change password',
+  'নতুন পোস্ট কে দেখবে (ডিফল্ট)': 'Who sees new posts (default)', 'ব্লক করা মানুষ': 'Blocked people',
+  'আড্ডাBook সম্পর্কে': 'About AddaBook', 'সব ডিভাইস থেকে লগ আউট': 'Log out from all devices',
+  'ডার্ক / লাইট থিম': 'Dark / light theme', 'সহজ মোড (বড় লেখা)': 'Easy mode (big text)',
+  'ডেটা সেভার মোড (ছবি চাপ দিলে লোড)': 'Data saver mode (tap to load photos)',
+  'কিড মোড (ডেটিং লুকানো)': 'Kid mode (dating hidden)', 'লগ আউট': 'Log out',
+  'নতুন পোস্ট কে দেখবে?': 'Who can see new posts?', 'সম্পর্কের অবস্থা (ঐচ্ছিক)': 'Relationship status (optional)',
+  'লিঙ্গ (ঐচ্ছিক)': 'Gender (optional)', 'ছবি দেখো (ডেটা সেভার)': 'View photo (data saver)',
+  'ভয়েস': 'Voice', 'নতুন স্টোরি (২৪ ঘণ্টা থাকবে)': 'New story (stays for 24 hours)',
+  'রিপ্লাই দাও': 'Reply', 'এই দিনে': 'On this day', 'গ্রুপ তহবিল': 'Group fund',
+  'সাপ্তাহিক রিপোর্ট (গত ৭ দিন)': 'Weekly report (last 7 days)', 'তোমার সেরা পোস্ট': 'Your best post',
+  'বেনামে প্রশ্ন করো': 'Ask a question anonymously', 'ব্লক করো': 'Block',
+  'এই প্রোফাইল রিপোর্ট করো': 'Report this profile', 'আজকের কুইজ': "Today's quiz",
+  'লিডারবোর্ড (টোকেন)': 'Leaderboard (tokens)', 'তোমার অর্জন': 'Your achievements',
+  'জন্মদিন': 'Birthday', 'কাজ / পেশা (যেমন: ছাত্র, শিক্ষক)': 'Work / profession (e.g. student, teacher)',
+  'পড়াশোনা (যেমন: ঢাকা বিশ্ববিদ্যালয়)': 'Education (e.g. University of Dhaka)',
+  'নিজ শহর (যেমন: রাজশাহী)': 'Hometown (e.g. Rajshahi)', 'ডাকনাম (যেমন: লিমন)': 'Nickname (e.g. Limon)',
+  'ভাষা (যেমন: বাংলা, English)': 'Languages (e.g. Bangla, English)',
+  'ওয়েবসাইট (যেমন: example.com)': 'Website (e.g. example.com)',
+  'শখ (যেমন: বই পড়া, ফুটবল, গান)': 'Hobbies (e.g. reading, football, music)',
+  'পছন্দের উক্তি': 'Favorite quote', 'পোষা প্রাণীর প্রোফাইল': 'Pet profiles',
+  'পোষা প্রাণী': 'Pet', 'অভ্যাস ট্র্যাকার': 'Habit tracker',
   /* shell / nav / auth */
   'হোম': 'Home', 'বন্ধু': 'Friend', 'চ্যাট': 'Chat', 'প্রোফাইল': 'Profile', 'আবিষ্কার': 'Explore',
   'খোঁজো': 'Search', 'নোটিফিকেশন': 'Notifications', 'স্টিকার': 'Stickers', 'ভয়েস মেসেজ': 'Voice message',
@@ -286,7 +327,7 @@ const I18N = {
   /* themes */
   '১০০ টোকেনে প্রিমিয়াম থিম কিনলে তোমার প্রোফাইলের কভার জায়গায় সেই রঙ ঝলমল করবে। ব্যালেন্স:': "Buy a premium theme for 100 tokens and that colour will shine on your profile cover. Balance:",
   '১০০ টোকেনে নাও': 'Get it for 100 tokens', 'থিম চালু হয়েছে 🎨': 'Theme applied 🎨', 'থিম সরানো হয়েছে': 'Theme removed',
-  '🌃 রাতের আকাশ': '🌃 Night sky', '🌇 সূর্যাস্ত': '🌇 Sunset', '🌊 সাগর': '🌊 Ocean', '🌲 বন': '🌲 Forest', '👑 রাজকীয়': '👑 Royal',
+  'রাতের আকাশ': 'Night sky', 'সূর্যাস্ত': 'Sunset', 'সাগর': 'Ocean', 'বন': 'Forest', 'রাজকীয়': 'Royal',
   /* stories */
   '📸 নতুন স্টোরি (২৪ ঘণ্টা থাকবে)': '📸 New story (stays for 24 hours)', '🖼 ছবি': '🖼 Photo', '🎤 ভয়েস': '🎤 Voice',
   'লেখা (ঐচ্ছিক)': 'Text (optional)', 'স্টোরি দাও': 'Add story', 'ছবি, ভয়েস বা লেখা দাও': 'Add a photo, voice note or text',
@@ -364,6 +405,7 @@ const I18N_PATTERNS = [
   [/^([^\n]+) · গ্রুপ চ্যাট$/, '$1 · Group chat'],
   [/^হয়নি: (.+)$/, 'Failed: $1'],
   [/^(\d+) দিনের স্ট্রিক$/, '$1-day streak'],
+  [/^([\d,]+) টোকেন$/, '$1 tokens'],
   [/^বন্ধুরা · (\d+)$/, 'Friends · $1'],
   [/^🪙 (\d+) টোকেন · 🔥 (\d+) দিনের স্ট্রিক$/, '🪙 $1 tokens · 🔥 $2-day streak'],
   [/^(\d+) দিন$/, (m, n) => n + (n === '1' ? ' day' : ' days')], [/^🔥 লগইন স্ট্রিক: (\d+) দিন$/, (m, n) => '🔥 Login streak: ' + n + (n === '1' ? ' day' : ' days')],
@@ -465,8 +507,78 @@ const I = {
   bookmark:'<svg viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4-6 4z"/></svg>',
   dots:'<svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>',
   img:'<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><circle cx="9" cy="10" r="1.6"/><path d="M4 18l5-5 3 3 3-3 5 5"/></svg>',
-  send:'➤'
+  send:'<svg viewBox="0 0 24 24"><path d="M22 2 11 13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>',
+  camera:'<svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>',
+  video:'<svg viewBox="0 0 24 24"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>',
+  grid:'<svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>',
+  chart:'<svg viewBox="0 0 24 24"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>',
+  calendar:'<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>',
+  file:'<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8M16 17H8M10 9H8"/></svg>',
+  bag:'<svg viewBox="0 0 24 24"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>',
+  hand:'<svg viewBox="0 0 24 24"><path d="M18 11V6a2 2 0 0 0-2-2 2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2 2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2 2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.9-6-2.3l-3.6-3.6a2 2 0 0 1 2.8-2.8L7 15"/></svg>',
+  eye:'<svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>',
+  eyeOff:'<svg viewBox="0 0 24 24"><path d="M17.94 17.94A10.6 10.6 0 0 1 12 20c-7 0-11-8-11-8a18.5 18.5 0 0 1 5.06-5.94M9.9 4.24A9.5 9.5 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><path d="M1 1l22 22"/></svg>',
+  gift:'<svg viewBox="0 0 24 24"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>',
+  link:'<svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>',
+  qr:'<svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14.5 14.5h2v2h-2z"/><path d="M21 15v2M15 21h2M18.5 18.5H21V21"/></svg>',
+  moon:'<svg viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>',
+  globe:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>',
+  shield:'<svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
+  key:'<svg viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.6 7.6a5.5 5.5 0 1 1-7.8 7.8 5.5 5.5 0 0 1 7.8-7.8zm0 0L15.5 7.5m0 0 3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>',
+  target:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>',
+  ban:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M4.9 4.9l14.2 14.2"/></svg>',
+  info:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>',
+  logout:'<svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><path d="M21 12H9"/></svg>',
+  power:'<svg viewBox="0 0 24 24"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><path d="M12 2v10"/></svg>',
+  download:'<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><path d="M12 15V3"/></svg>',
+  wallet:'<svg viewBox="0 0 24 24"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4z"/></svg>',
+  palette:'<svg viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r=".8"/><circle cx="17.5" cy="10.5" r=".8"/><circle cx="8.5" cy="7.5" r=".8"/><circle cx="6.5" cy="12.5" r=".8"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.6-.7 1.6-1.7 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1a1.6 1.6 0 0 1 1.7-1.7h2c3 0 5.5-2.5 5.5-5.5C22 6 17.5 2 12 2z"/></svg>',
+  gear:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+  clock:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+  sparkles:'<svg viewBox="0 0 24 24"><path d="M12 3l1.9 5.8 5.8 1.9-5.8 1.9L12 18.4l-1.9-5.8L4.3 10.7l5.8-1.9z"/><path d="M19 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></svg>',
+  droplet:'<svg viewBox="0 0 24 24"><path d="M12 2.7 6.7 8.5a7.5 7.5 0 1 0 10.6 0z"/></svg>',
+  briefcase:'<svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>',
+  smile:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01M15 9h.01"/></svg>',
+  mic:'<svg viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v4M8 23h8"/></svg>',
+  archive:'<svg viewBox="0 0 24 24"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><path d="M10 12h4"/></svg>',
+  check:'<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>',
+  x:'<svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+  plus:'<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+  edit:'<svg viewBox="0 0 24 24"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg>',
+  pin:'<svg viewBox="0 0 24 24"><path d="M8 3h8v6l2.5 4h-13L8 9z"/><path d="M12 13v8"/></svg>',
+  pinLoc:'<svg viewBox="0 0 24 24"><path d="M12 21s-6.5-5.6-6.5-10.3a6.5 6.5 0 0 1 13 0C18.5 15.4 12 21 12 21z"/><circle cx="12" cy="10.8" r="2.3"/></svg>',
+  trash:'<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M10 11v6M14 11v6"/></svg>',
+  flag:'<svg viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22v-7"/></svg>',
+  volume:'<svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>',
+  rocket:'<svg viewBox="0 0 24 24"><path d="M4.5 16.5c-1.5 1.3-2 5-2 5s3.7-.5 5-2c.7-.8.7-2.1-.1-2.9a2.2 2.2 0 0 0-2.9-.1z"/><path d="M12 15l-3-3a22 22 0 0 1 2-4A12.9 12.9 0 0 1 22 2c0 2.7-.8 7.5-6 11a22 22 0 0 1-4 2z"/><path d="M9 12H4s.6-3 2-4c1.6-1.1 5 0 5 0"/><path d="M12 15v5s3-.6 4-2c1.1-1.6 0-5 0-5"/></svg>',
+  star:'<svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
+  starF:'<svg viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.4l-5.9 3.1 1.2-6.5L2.5 9.4l6.6-.9z"/></svg>',
+  heartF:'<svg viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M12 20.5C7 16.6 3 13.4 3 9.4 3 6.4 5.4 4 8.4 4c1.5 0 2.9.7 3.6 1.7C12.7 4.7 14.1 4 15.6 4 18.6 4 21 6.4 21 9.4c0 4-4 7.2-9 11.1z"/></svg>',
+  trophy:'<svg viewBox="0 0 24 24"><path d="M8 21h8M12 17v4"/><path d="M7 4h10v6a5 5 0 0 1-10 0z"/><path d="M7 6H4a1 1 0 0 0-1 1c0 2 1.6 3.5 4 3.5M17 6h3a1 1 0 0 1 1 1c0 2-1.6 3.5-4 3.5"/></svg>',
+  book:'<svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>',
+  utensils:'<svg viewBox="0 0 24 24"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/></svg>',
+  map:'<svg viewBox="0 0 24 24"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><path d="M8 2v16M16 6v16"/></svg>',
+  landmark:'<svg viewBox="0 0 24 24"><path d="M3 21h18"/><path d="M5 21v-9M9.5 21v-9M14.5 21v-9M19 21v-9"/><path d="M2 12l10-6.5L22 12z"/></svg>',
+  idCard:'<svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><circle cx="8" cy="11" r="2"/><path d="M5.5 16c.4-1.3 1.3-2 2.5-2s2.1.7 2.5 2"/><path d="M14.5 9.5H18M14.5 13H18"/></svg>',
+  grad:'<svg viewBox="0 0 24 24"><path d="M22 10 12 5 2 10l10 5 10-5z"/><path d="M6 12.5V16c0 1.7 2.7 3 6 3s6-1.3 6-3v-3.5"/><path d="M22 10v6"/></svg>',
+  car:'<svg viewBox="0 0 24 24"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.5 2.8A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg>',
+  bulb:'<svg viewBox="0 0 24 24"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>',
+  music:'<svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>',
+  ball:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 7.5 15 9.7l-1.2 3.6h-3.6L9 9.7z"/><path d="M12 2.2v5.3M20.6 7.4 15 9.7M21.8 15.4l-5.9-2.1M15.9 21.4l-2.1-5.5M8.1 21.4l2.1-5.5M2.2 15.4l5.9-2.1M3.4 7.4 9 9.7"/></svg>',
+  code:'<svg viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>',
+  folder:'<svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>',
+  lock:'<svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
+  gem:'<svg viewBox="0 0 24 24"><path d="M6 3h12l4 6-10 13L2 9z"/><path d="M11 3 8 9l4 13 4-13-3-6"/><path d="M2 9h20"/></svg>',
+  sprout:'<svg viewBox="0 0 24 24"><path d="M7 20h10"/><path d="M10 20c5.5-2.5.8-6.4 3-10"/><path d="M9.5 9.4c1.1.8 1.8 2.2 2.3 3.7-2 .4-3.5.4-4.8-.3-1.2-.6-2.3-1.9-3-4.2 2.8-.5 4.4 0 5.5.8z"/><path d="M14.1 6a7 7 0 0 0-1.1 4c1.9-.1 3.3-.6 4.3-1.4 1-1 1.6-2.3 1.7-4.6-2.7.1-4 1-4.9 2z"/></svg>',
+  paw:'<svg viewBox="0 0 24 24"><ellipse cx="12" cy="15.8" rx="4.1" ry="3.3" fill="currentColor" stroke="none"/><ellipse cx="4.9" cy="11" rx="1.8" ry="2.2" fill="currentColor" stroke="none"/><ellipse cx="8.6" cy="7.6" rx="1.8" ry="2.3" fill="currentColor" stroke="none"/><ellipse cx="13" cy="7.2" rx="1.8" ry="2.3" fill="currentColor" stroke="none"/><ellipse cx="17.2" cy="9.6" rx="1.8" ry="2.2" fill="currentColor" stroke="none"/></svg>',
+  type:'<svg viewBox="0 0 24 24"><polyline points="4 7 4 4 20 4 20 7"/><path d="M9 20h6M12 4v16"/></svg>',
+  wifi:'<svg viewBox="0 0 24 24"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><path d="M12 20h.01"/></svg>',
+  help:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>'
 };
+
+/* sized inline icon for buttons/menus outside the .icb/.nav/.acts CSS scopes */
+const ic = (n, s = 17) => (I[n] || '').replace('<svg ', `<svg width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-3.5px;flex:none" `);
+
 
 /* ---------- SHELL ---------- */
 function renderShell(){
@@ -558,7 +670,7 @@ async function downloadMyData(){
 }
 async function renderArchived(){
   curView = 'archived'; renderShell();
-  view().innerHTML = `<div class="view"><div style="padding:14px 16px;font-size:18px;font-weight:800">🗄 আর্কাইভ করা পোস্ট</div><div id="archList"><div class="empty">লোড হচ্ছে...</div></div></div>`;
+  view().innerHTML = `<div class="view"><div style="padding:14px 16px;font-size:18px;font-weight:800">${ic('archive', 19)} আর্কাইভ করা পোস্ট</div><div id="archList"><div class="empty">লোড হচ্ছে...</div></div></div>`;
   const posts = await fetchPosts({ authorId: me.id, archivedOnly: true });
   const el = document.getElementById('archList');
   if (el) el.innerHTML = posts.length ? posts.map(postCard).join('') : '<div class="card empty">আর্কাইভে কিছু নেই</div>';
@@ -566,7 +678,7 @@ async function renderArchived(){
 async function renderVideos(){
   toast('এই অংশটা আপাতত বন্ধ আছে'); go('feed'); return;
   curView = 'videos'; renderShell();
-  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">🎬 ভিডিও</div><div id="vidList"><div class="empty">লোড হচ্ছে...</div></div></div>`;
+  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">${ic('video', 19)} ভিডিও</div><div id="vidList"><div class="empty">লোড হচ্ছে...</div></div></div>`;
   const { data } = await sb.from('posts').select('*').not('video_url', 'is', null).neq('video_url', '').order('created_at', { ascending: false }).limit(30);
   const posts = data && data.length ? await fetchPostsByIds(data) : [];
   const el = document.getElementById('vidList');
@@ -595,7 +707,7 @@ async function renderQuiz(){
   const item = QUIZ_BANK[day % QUIZ_BANK.length];
   const doneKey = 'adda-quiz-' + day;
   const done = localStorage.getItem(doneKey);
-  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">🧠 আজকের কুইজ</div>
+  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">${ic('help', 19)} আজকের কুইজ</div>
     <div class="card"><p style="font-size:15.5px;line-height:1.6"><b>${esc(item.q)}</b></p>
     <div id="quizOpts" style="display:grid;gap:8px;margin-top:12px">${item.o.map((o, i) => `<button class="btn ghost" style="justify-content:flex-start" onclick="answerQuiz(${i},'${doneKey}')">${esc(o)}</button>`).join('')}</div>
     <p id="quizMsg" style="margin-top:12px;font-size:13.5px;color:var(--mut)">${done ? 'আজকের কুইজ তুমি খেলে ফেলেছ — কাল আবার এসো! সঠিক উত্তরে পাওয়া যায় ৩০ টোকেন।' : 'সঠিক উত্তর দিলে পাবে ৩০ টোকেন 🎉 (দিনে একবার)'}</p></div></div>`;
@@ -618,7 +730,7 @@ async function answerQuiz(idx, doneKey){
 async function renderLeaderboard(){
   toast('এই অংশটা আপাতত বন্ধ আছে'); go('feed'); return;
   curView = 'leaderboard'; renderShell();
-  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">🏆 লিডারবোর্ড (টোকেন)</div><div class="card" id="lbList" style="padding:6px 15px"><div class="empty">লোড হচ্ছে...</div></div></div>`;
+  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">${ic('trophy', 19)} লিডারবোর্ড (টোকেন)</div><div class="card" id="lbList" style="padding:6px 15px"><div class="empty">লোড হচ্ছে...</div></div></div>`;
   const { data } = await sb.from('profiles').select('*').order('tokens', { ascending: false }).limit(20);
   (data || []).forEach(p => profilesCache[p.id] = p);
   const el = document.getElementById('lbList');
@@ -627,7 +739,7 @@ async function renderLeaderboard(){
 async function renderAchievements(){
   toast('এই অংশটা আপাতত বন্ধ আছে'); go('feed'); return;
   curView = 'achieve'; renderShell();
-  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">🎖 তোমার অর্জন</div><div id="achList"><div class="empty">লোড হচ্ছে...</div></div></div>`;
+  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">${ic('trophy', 19)} তোমার অর্জন</div><div id="achList"><div class="empty">লোড হচ্ছে...</div></div></div>`;
   const [posts, likesGot] = await Promise.all([
     sb.from('posts').select('id', { count: 'exact', head: true }).eq('user_id', me.id),
     sb.from('posts').select('id').eq('user_id', me.id).limit(200)
@@ -638,17 +750,17 @@ async function renderAchievements(){
     likeCount = count || 0;
   }
   const items = [
-    ['✍️', 'প্রথম পোস্ট', (posts.count || 0) >= 1], ['📚', 'লেখক — ১০টি পোস্ট', (posts.count || 0) >= 10],
-    ['❤️', 'ভালোবাসা পেয়েছ — ২৫ লাইক', likeCount >= 25], ['🔥', '৭ দিনের স্ট্রিক', (me.login_streak || 0) >= 7],
-    ['👥', 'বন্ধু মহল — ১০ বন্ধু', friendIds.size >= 10], ['💎', 'ধনী — ৫০০ টোকেন', (me.tokens || 0) >= 500],
-    ['💬', 'আড্ডাবাজ — মন্তব্যে সক্রিয়', true]
+    ['edit', 'প্রথম পোস্ট', (posts.count || 0) >= 1], ['book', 'লেখক — ১০টি পোস্ট', (posts.count || 0) >= 10],
+    ['heart', 'ভালোবাসা পেয়েছ — ২৫ লাইক', likeCount >= 25], ['fire', '৭ দিনের স্ট্রিক', (me.login_streak || 0) >= 7],
+    ['users', 'বন্ধু মহল — ১০ বন্ধু', friendIds.size >= 10], ['gem', 'ধনী — ৫০০ টোকেন', (me.tokens || 0) >= 500],
+    ['comment', 'আড্ডাবাজ — মন্তব্যে সক্রিয়', true]
   ];
   const el = document.getElementById('achList');
-  if (el) el.innerHTML = `<div class="card" style="padding:6px 15px">${items.map(([ic, t, got]) => `<div class="earn" style="opacity:${got ? 1 : 0.45}"><span class="eic">${ic}</span><div><b>${t}</b></div><span>${got ? '✅' : '🔒'}</span></div>`).join('')}</div>`;
+  if (el) el.innerHTML = `<div class="card" style="padding:6px 15px">${items.map(([icn, t, got]) => `<div class="earn" style="opacity:${got ? 1 : 0.45}"><span class="eic">${ic(icn, 20)}</span><div><b>${t}</b></div><span style="display:inline-flex">${got ? ic('check', 16) : ic('lock', 16)}</span></div>`).join('')}</div>`;
 }
 async function renderCreator(){
   curView = 'creator'; renderShell();
-  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">📊 ক্রিয়েটর ড্যাশবোর্ড</div><div id="creBody"><div class="empty">লোড হচ্ছে...</div></div></div>`;
+  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">${ic('chart', 19)} ক্রিয়েটর ড্যাশবোর্ড</div><div id="creBody"><div class="empty">লোড হচ্ছে...</div></div></div>`;
   const { data: myPosts } = await sb.from('posts').select('*').eq('user_id', me.id).order('created_at', { ascending: false }).limit(100);
   const posts = myPosts && myPosts.length ? await fetchPostsByIds(myPosts) : [];
   const totalLikes = posts.reduce((s, p) => s + (p._likes || 0), 0);
@@ -661,22 +773,22 @@ async function renderCreator(){
   const el = document.getElementById('creBody');
   if (el) el.innerHTML = `
     <div class="stats" style="margin:12px"><div><b>${bn(posts.length)}</b><small>মোট পোস্ট</small></div><div><b>${bn(totalLikes)}</b><small>মোট লাইক</small></div><div><b>${bn(totalComments)}</b><small>মোট মন্তব্য</small></div></div>
-    <div class="stats" style="margin:0 12px"><div><b>${bn(followers || 0)}</b><small>ফলোয়ার</small></div><div><b>${bn(viewsCount || 0)}</b><small>প্রোফাইল ভিউ</small></div><div><b>🔥 ${bn(me.login_streak || 0)}</b><small>দিনের স্ট্রিক</small></div></div>
-    <div class="seclabel">📅 সাপ্তাহিক রিপোর্ট (গত ৭ দিন)</div>
+    <div class="stats" style="margin:0 12px"><div><b>${bn(followers || 0)}</b><small>ফলোয়ার</small></div><div><b>${bn(viewsCount || 0)}</b><small>প্রোফাইল ভিউ</small></div><div><b>${ic('fire', 15)} ${bn(me.login_streak || 0)}</b><small>দিনের স্ট্রিক</small></div></div>
+    <div class="seclabel">${ic('calendar', 15)} সাপ্তাহিক রিপোর্ট (গত ৭ দিন)</div>
     <div class="card"><p style="font-size:14px;line-height:1.7">এই সপ্তাহে তুমি <b>${bn(weekPosts.length)}টি</b> পোস্ট করেছ। মোট লাইক <b>${bn(totalLikes)}</b>, মন্তব্য <b>${bn(totalComments)}</b>। ${weekPosts.length ? 'দারুণ চলছে — এভাবেই চালিয়ে যাও! 🎉' : 'এই সপ্তাহে একটা পোস্ট করে শুরু করো!'}</p></div>
-    ${top ? `<div class="seclabel">🏆 তোমার সেরা পোস্ট</div>` + postCard(top) : ''}`;
+    ${top ? `<div class="seclabel">${ic('trophy', 15)} তোমার সেরা পোস্ট</div>` + postCard(top) : ''}`;
 }
 
 /* ---------- V2: ALBUMS / PAGES / EVENTS ---------- */
 async function renderAlbums(uid = null){
   curView = 'albums'; renderShell();
   const owner = uid || me.id;
-  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">🖼 ছবির অ্যালবাম</div>
+  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">${ic('img', 19)} ছবির অ্যালবাম</div>
     ${owner === me.id ? `<div style="padding:12px 12px 0"><button class="btn block" onclick="createAlbumSheet()">+ নতুন অ্যালবাম</button></div>` : ''}
     <div id="albumList" style="padding:12px"><div class="empty">লোড হচ্ছে...</div></div></div>`;
   const { data } = await sb.from('albums').select('*').eq('user_id', owner).order('created_at', { ascending: false });
   const el = document.getElementById('albumList');
-  if (el) el.innerHTML = (data || []).length ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">${data.map(a => `<button class="card" style="margin:0;text-align:left;cursor:pointer" onclick="openAlbum('${a.id}')"><b>📁 ${esc(a.name)}</b><br><small style="color:var(--mut)">${timeAgo(a.created_at)}</small></button>`).join('')}</div>` : '<div class="card empty">কোনো অ্যালবাম নেই</div>';
+  if (el) el.innerHTML = (data || []).length ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">${data.map(a => `<button class="card" style="margin:0;text-align:left;cursor:pointer" onclick="openAlbum('${a.id}')"><b>${ic('folder', 15)} ${esc(a.name)}</b><br><small style="color:var(--mut)">${timeAgo(a.created_at)}</small></button>`).join('')}</div>` : '<div class="card empty">কোনো অ্যালবাম নেই</div>';
 }
 function createAlbumSheet(){
   sheet(`<h3>নতুন অ্যালবাম</h3><input class="field" id="albTitle" placeholder="অ্যালবামের নাম (যেমন: কক্সবাজার ভ্রমণ)"><button class="btn block" onclick="createAlbum()">বানাও</button>`);
@@ -690,7 +802,7 @@ async function createAlbum(){
 async function openAlbum(albumId){
   const { data: album } = await sb.from('albums').select('*').eq('id', albumId).single();
   const { data: photos } = await sb.from('album_photos').select('*').eq('album_id', albumId).order('created_at');
-  sheet(`<h3>📁 ${esc(album ? album.name : 'অ্যালবাম')}</h3>
+  sheet(`<h3>${ic('folder', 18)} ${esc(album ? album.name : 'অ্যালবাম')}</h3>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">${(photos || []).map(ph => `<img src="${esc(ph.image_url)}" style="width:100%;border-radius:10px;aspect-ratio:1;object-fit:cover">`).join('') || '<p style="color:var(--mut);font-size:13.5px">এখনো ছবি নেই</p>'}</div>
     ${album && album.user_id === me.id ? `<label class="btn block" style="margin-top:12px;cursor:pointer">+ ছবি যোগ করো<input type="file" accept="image/*" style="display:none" onchange="addAlbumPhoto('${albumId}',this)"></label>` : ''}`);
 }
@@ -703,7 +815,7 @@ async function addAlbumPhoto(albumId, input){
 }
 async function renderPages(){
   curView = 'pages'; renderShell();
-  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">📄 পেজ</div>
+  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">${ic('file', 19)} পেজ</div>
     <div style="padding:12px 12px 0"><button class="btn block" onclick="createPageSheet()">+ নতুন পেজ বানাও</button></div>
     <div class="card" id="pageList" style="padding:6px 15px"><div class="empty">লোড হচ্ছে...</div></div></div>`;
   const { data } = await sb.from('pages').select('*').order('created_at', { ascending: false }).limit(40);
@@ -728,7 +840,7 @@ async function renderPageDetail(pageId){
   const { data: follows } = await sb.from('page_follows').select('user_id').eq('page_id', pageId);
   const iFollow = (follows || []).some(f => f.user_id === me.id);
   view().innerHTML = `<div class="view">
-    <div class="cover"></div><div class="prof"><div class="big">${pg.avatar_url ? `<img src="${esc(pg.avatar_url)}">` : '📄'}</div>
+    <div class="cover"></div><div class="prof"><div class="big">${pg.avatar_url ? `<img src="${esc(pg.avatar_url)}">` : ic('file', 36)}</div>
     <div style="font-size:19px;font-weight:800">${esc(pg.name)}</div>
     <p style="color:var(--mut);font-size:13px">${esc(pg.category || '')} · ${bn((follows || []).length)} ফলোয়ার</p>
     ${pg.about ? `<p style="font-size:13.5px;margin-top:6px">${esc(pg.about)}</p>` : ''}
@@ -749,7 +861,7 @@ async function togglePageFollow(pageId, following){
 }
 async function renderEvents(){
   curView = 'events'; renderShell();
-  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">📅 ইভেন্ট</div>
+  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">${ic('calendar', 19)} ইভেন্ট</div>
     <div style="padding:12px 12px 0"><button class="btn block" onclick="createEventSheet()">+ নতুন ইভেন্ট</button></div>
     <div id="eventList" style="padding:12px"><div class="empty">লোড হচ্ছে...</div></div></div>`;
   const { data } = await sb.from('events').select('*').gte('starts_at', new Date(Date.now() - 864e5).toISOString()).order('starts_at').limit(40);
@@ -785,8 +897,8 @@ async function toggleRsvp(eventId, going){
 let serviceTab = 'blood';
 async function renderService(tab = 'blood'){
   curView = 'service'; serviceTab = tab; renderShell();
-  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">🤝 সেবা বোর্ড</div>
-    <div class="seg"><button class="${tab === 'blood' ? 'on' : ''}" onclick="renderService('blood')">🩸 রক্ত</button><button class="${tab === 'lost' ? 'on' : ''}" onclick="renderService('lost')">🔍 হারানো-প্রাপ্তি</button><button class="${tab === 'jobs' ? 'on' : ''}" onclick="renderService('jobs')">💼 চাকরি</button></div>
+  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">${ic('hand', 19)} সেবা বোর্ড</div>
+    <div class="seg"><button class="${tab === 'blood' ? 'on' : ''}" onclick="renderService('blood')">${ic('droplet', 15)} রক্ত</button><button class="${tab === 'lost' ? 'on' : ''}" onclick="renderService('lost')">${ic('search', 15)} হারানো-প্রাপ্তি</button><button class="${tab === 'jobs' ? 'on' : ''}" onclick="renderService('jobs')">${ic('briefcase', 15)} চাকরি</button></div>
     <div style="padding:0 12px"><button class="btn block" onclick="serviceAddSheet('${tab}')">+ নতুন পোস্ট দাও</button></div>
     <div id="svcList" style="padding:12px"><div class="empty">লোড হচ্ছে...</div></div></div>`;
   const table = tab === 'blood' ? 'blood_requests' : tab === 'lost' ? 'lost_items' : 'jobs';
@@ -805,9 +917,9 @@ async function renderService(tab = 'blood'){
   }).join('');
 }
 function serviceAddSheet(tab){
-  if (tab === 'blood') sheet(`<h3>🩸 রক্তের আবেদন</h3><input class="field" id="svGroup" placeholder="রক্তের গ্রুপ (যেমন: B+)"><input class="field" id="svHospital" placeholder="হাসপাতাল"><input class="field" id="svArea" placeholder="এলাকা"><button class="btn block" onclick="serviceAdd('blood')">পোস্ট করো</button>`);
-  else if (tab === 'lost') sheet(`<h3>🔍 হারানো-প্রাপ্তি</h3><select class="field" id="svKind"><option value="lost">হারিয়ে গেছে</option><option value="found">পাওয়া গেছে</option></select><input class="field" id="svTitle" placeholder="কী জিনিস?"><input class="field" id="svArea" placeholder="কোন এলাকায়?"><button class="btn block" onclick="serviceAdd('lost')">পোস্ট করো</button>`);
-  else sheet(`<h3>💼 চাকরির পোস্ট</h3><input class="field" id="svTitle" placeholder="পদের নাম"><input class="field" id="svCompany" placeholder="প্রতিষ্ঠান"><input class="field" id="svArea" placeholder="এলাকা"><button class="btn block" onclick="serviceAdd('jobs')">পোস্ট করো</button>`);
+  if (tab === 'blood') sheet(`<h3>${ic('droplet', 18)} রক্তের আবেদন</h3><input class="field" id="svGroup" placeholder="রক্তের গ্রুপ (যেমন: B+)"><input class="field" id="svHospital" placeholder="হাসপাতাল"><input class="field" id="svArea" placeholder="এলাকা"><button class="btn block" onclick="serviceAdd('blood')">পোস্ট করো</button>`);
+  else if (tab === 'lost') sheet(`<h3>${ic('search', 18)} হারানো-প্রাপ্তি</h3><select class="field" id="svKind"><option value="lost">হারিয়ে গেছে</option><option value="found">পাওয়া গেছে</option></select><input class="field" id="svTitle" placeholder="কী জিনিস?"><input class="field" id="svArea" placeholder="কোন এলাকায়?"><button class="btn block" onclick="serviceAdd('lost')">পোস্ট করো</button>`);
+  else sheet(`<h3>${ic('briefcase', 18)} চাকরির পোস্ট</h3><input class="field" id="svTitle" placeholder="পদের নাম"><input class="field" id="svCompany" placeholder="প্রতিষ্ঠান"><input class="field" id="svArea" placeholder="এলাকা"><button class="btn block" onclick="serviceAdd('jobs')">পোস্ট করো</button>`);
 }
 async function serviceAdd(tab){
   let row = { user_id: me.id }, table = '';
@@ -822,7 +934,7 @@ let marketCat = 'সব';
 async function renderMarket(cat = 'সব'){
   curView = 'market'; marketCat = cat; renderShell();
   const cats = ['সব', 'বিক্রি', 'ফ্রি', 'সেবা', 'অফার', 'বই বিনিময়'];
-  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">🛍 আড্ডা বাজার</div>
+  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">${ic('bag', 19)} আড্ডা বাজার</div>
     <div style="display:flex;gap:6px;padding:12px 12px 0;flex-wrap:wrap">${cats.map(c => `<button class="btn ${c === cat ? '' : 'ghost'} sm" onclick="renderMarket('${c}')">${c}</button>`).join('')}</div>
     <div style="padding:12px 12px 0"><button class="btn block" onclick="listingSheet()">+ বিজ্ঞাপন দাও</button></div>
     <div id="mktList" style="padding:12px"><div class="empty">লোড হচ্ছে...</div></div>
@@ -835,7 +947,7 @@ async function renderMarket(cat = 'সব'){
   if (el) el.innerHTML = (data || []).length ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">${data.map(l => `<div class="card" style="margin:0">${l.image_url ? `<img src="${esc(l.image_url)}" style="width:100%;border-radius:10px;aspect-ratio:1.2;object-fit:cover">` : ''}<b style="font-size:14.5px">${esc(l.title)}</b><br><span class="pill">${esc(l.category)}</span> <b style="color:var(--acc)">${l.price ? '৳' + bn(l.price) : 'ফ্রি'}</b><br><small style="color:var(--mut)">${esc(prof(l.user_id).name)}</small><br>${l.user_id !== me.id ? `<button class="btn sm" style="margin-top:7px" onclick="startChat('${l.user_id}')">মেসেজ করো</button>` : `<button class="btn ghost sm" style="margin-top:7px" onclick="deleteListing('${l.id}')">মুছে ফেলো</button>`}</div>`).join('')}</div>` : '<div class="card empty">এই ক্যাটাগরিতে কিছু নেই</div>';
 }
 function listingSheet(){
-  sheet(`<h3>🛍 নতুন বিজ্ঞাপন</h3><input class="field" id="lsTitle" placeholder="জিনিসের নাম"><select class="field" id="lsCat"><option>বিক্রি</option><option>ফ্রি</option><option>সেবা</option><option>অফার</option><option>বই বিনিময়</option></select><input class="field" id="lsPrice" type="number" min="0" placeholder="দাম টাকায় (ফ্রি হলে ০ দাও)"><label style="font-size:13.5px;color:var(--mut)">ছবি <input type="file" id="lsImg" accept="image/*" style="font-size:12px"></label><button class="btn block" style="margin-top:10px" onclick="addListing()">বিজ্ঞাপন দাও</button>`);
+  sheet(`<h3>${ic('bag', 18)} নতুন বিজ্ঞাপন</h3><input class="field" id="lsTitle" placeholder="জিনিসের নাম"><select class="field" id="lsCat"><option>বিক্রি</option><option>ফ্রি</option><option>সেবা</option><option>অফার</option><option>বই বিনিময়</option></select><input class="field" id="lsPrice" type="number" min="0" placeholder="দাম টাকায় (ফ্রি হলে ০ দাও)"><label style="font-size:13.5px;color:var(--mut)">ছবি <input type="file" id="lsImg" accept="image/*" style="font-size:12px"></label><button class="btn block" style="margin-top:10px" onclick="addListing()">বিজ্ঞাপন দাও</button>`);
 }
 async function addListing(){
   const title = document.getElementById('lsTitle').value.trim(); if (!title) { toast('নাম দাও'); return; }
@@ -852,28 +964,28 @@ async function deleteListing(id){
 function renderGov(){
   curView = 'gov'; renderShell();
   const links = [
-    ['🏛', 'জাতীয় পোর্টাল (সব সেবা এক জায়গায়)', 'https://bangladesh.gov.bd'],
-    ['🆔', 'জাতীয় পরিচয়পত্র (NID) সেবা', 'https://services.nidw.gov.bd'],
-    ['📜', 'জন্ম নিবন্ধন', 'https://bdris.gov.bd'],
-    ['🛂', 'ই-পাসপোর্ট', 'https://www.epassport.gov.bd'],
-    ['🎓', 'শিক্ষা বোর্ডের ফলাফল', 'https://educationboardresults.gov.bd'],
-    ['👮', 'বাংলাদেশ পুলিশ', 'https://www.police.gov.bd'],
-    ['🚗', 'BRTA (ড্রাইভিং লাইসেন্স, গাড়ি)', 'https://www.brta.gov.bd'],
-    ['💡', 'বিদ্যুৎ বিল ও সেবা (DESCO)', 'https://desco.org.bd']
+    ['landmark', 'জাতীয় পোর্টাল (সব সেবা এক জায়গায়)', 'https://bangladesh.gov.bd'],
+    ['idCard', 'জাতীয় পরিচয়পত্র (NID) সেবা', 'https://services.nidw.gov.bd'],
+    ['file', 'জন্ম নিবন্ধন', 'https://bdris.gov.bd'],
+    ['globe', 'ই-পাসপোর্ট', 'https://www.epassport.gov.bd'],
+    ['grad', 'শিক্ষা বোর্ডের ফলাফল', 'https://educationboardresults.gov.bd'],
+    ['shield', 'বাংলাদেশ পুলিশ', 'https://www.police.gov.bd'],
+    ['car', 'BRTA (ড্রাইভিং লাইসেন্স, গাড়ি)', 'https://www.brta.gov.bd'],
+    ['bulb', 'বিদ্যুৎ বিল ও সেবা (DESCO)', 'https://desco.org.bd']
   ];
-  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">🏛 সরকারি সেবার লিংক</div>
+  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">${ic('landmark', 19)} সরকারি সেবার লিংক</div>
     <p style="padding:8px 16px 0;font-size:13px;color:var(--mut)">সবগুলোই সরকারি অফিসিয়াল ওয়েবসাইট — লিংকে গিয়ে সরাসরি সেবা নাও।</p>
-    <div class="card" style="padding:6px 15px">${links.map(([ic, t, u]) => `<a class="menu-item" style="display:flex;text-decoration:none;color:var(--ink)" href="${u}" target="_blank" rel="noopener">${ic} ${t}<span style="margin-left:auto">↗</span></a>`).join('')}</div>
-    <div style="padding:0 12px"><button class="btn ghost block" onclick="openTag('পড়াশোনা')">📚 পড়াশোনা কর্নার</button></div>
-    <div style="padding:8px 12px 0"><button class="btn ghost block" onclick="openTag('রেসিপি')">🍳 রেসিপি কর্নার</button></div>
-    <div style="padding:8px 12px 0"><button class="btn ghost block" onclick="openTag('ভ্রমণ')">✈️ ভ্রমণ কর্নার</button></div></div>`;
+    <div class="card" style="padding:6px 15px">${links.map(([icn, t, u]) => `<a class="menu-item" style="display:flex;text-decoration:none;color:var(--ink)" href="${u}" target="_blank" rel="noopener">${ic(icn, 17)} ${t}<span style="margin-left:auto">↗</span></a>`).join('')}</div>
+    <div style="padding:0 12px"><button class="btn ghost block" onclick="openTag('পড়াশোনা')">${ic('book', 15)} পড়াশোনা কর্নার</button></div>
+    <div style="padding:8px 12px 0"><button class="btn ghost block" onclick="openTag('রেসিপি')">${ic('utensils', 15)} রেসিপি কর্নার</button></div>
+    <div style="padding:8px 12px 0"><button class="btn ghost block" onclick="openTag('ভ্রমণ')">${ic('map', 15)} ভ্রমণ কর্নার</button></div></div>`;
 }
 
 /* ---------- V2: HABITS / PETS / ANON / CLOSE FRIENDS ---------- */
 async function renderHabits(){
   toast('এই অংশটা আপাতত বন্ধ আছে'); go('feed'); return;
   curView = 'habits'; renderShell();
-  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">🌱 অভ্যাস ট্র্যাকার</div>
+  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">${ic('sprout', 19)} অভ্যাস ট্র্যাকার</div>
     <div style="padding:12px 12px 0"><button class="btn block" onclick="habitSheet()">+ নতুন অভ্যাস</button></div>
     <div id="habitList" style="padding:12px"><div class="empty">লোড হচ্ছে...</div></div></div>`;
   const { data: habits } = await sb.from('habits').select('*').eq('user_id', me.id).order('created_at');
@@ -887,7 +999,7 @@ async function renderHabits(){
     if (!doneToday) d.setDate(d.getDate() - 1);
     const daySet = new Set(myLogs.map(l => l.day));
     while (daySet.has(d.toISOString().slice(0, 10))) { streak++; d.setDate(d.getDate() - 1); }
-    return `<div class="card"><div style="display:flex;align-items:center;gap:10px"><span style="font-size:24px">🌱</span><div style="flex:1"><b>${esc(h.name)}</b><br><small style="color:var(--mut)">🔥 ধারাবাহিকতা: ${bn(streak)} দিন · মোট ${bn(myLogs.length)} বার</small></div>${doneToday ? '<span class="pill">আজ হয়েছে ✓</span>' : `<button class="btn sm" onclick="logHabit('${h.id}')">আজ করলাম</button>`}</div></div>`;
+    return `<div class="card"><div style="display:flex;align-items:center;gap:10px"><span style="display:flex">${ic('sprout', 26)}</span><div style="flex:1"><b>${esc(h.name)}</b><br><small style="color:var(--mut)">🔥 ধারাবাহিকতা: ${bn(streak)} দিন · মোট ${bn(myLogs.length)} বার</small></div>${doneToday ? '<span class="pill">আজ হয়েছে ✓</span>' : `<button class="btn sm" onclick="logHabit('${h.id}')">আজ করলাম</button>`}</div></div>`;
   }).join('') : '<div class="card empty">এখনো কোনো অভ্যাস নেই — যেমন: বই পড়া, ব্যায়াম, নামাজ</div>';
 }
 function habitSheet(){
@@ -907,16 +1019,16 @@ async function logHabit(habitId){
 async function renderPets(){
   toast('এই অংশটা আপাতত বন্ধ আছে'); go('feed'); return;
   curView = 'pets'; renderShell();
-  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">🐾 পোষা প্রাণীর প্রোফাইল</div>
+  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">${ic('paw', 19)} পোষা প্রাণীর প্রোফাইল</div>
     <div style="padding:12px 12px 0"><button class="btn block" onclick="petSheet()">+ আমার পোষা প্রাণী যোগ করো</button></div>
     <div id="petList" style="padding:12px"><div class="empty">লোড হচ্ছে...</div></div></div>`;
   const { data } = await sb.from('pets').select('*').order('created_at', { ascending: false }).limit(40);
   await cacheProfiles((data || []).map(p => p.user_id));
   const el = document.getElementById('petList');
-  if (el) el.innerHTML = (data || []).length ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">${data.map(p => `<div class="card" style="margin:0;text-align:center">${p.photo_url ? `<img src="${esc(p.photo_url)}" style="width:100%;border-radius:12px;aspect-ratio:1;object-fit:cover">` : '<div style="font-size:44px">🐾</div>'}<b>${esc(p.name)}</b><br><small style="color:var(--mut)">${esc(p.kind || '')}</small><br><small style="color:var(--faint)">মালিক: ${esc(prof(p.user_id).name)}</small>${p.user_id === me.id ? `<br><button class="btn ghost sm" style="margin-top:6px" onclick="deletePet('${p.id}')">মুছো</button>` : ''}</div>`).join('')}</div>` : '<div class="card empty">এখনো কোনো পোষা প্রাণী যোগ হয়নি</div>';
+  if (el) el.innerHTML = (data || []).length ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">${data.map(p => `<div class="card" style="margin:0;text-align:center">${p.photo_url ? `<img src="${esc(p.photo_url)}" style="width:100%;border-radius:12px;aspect-ratio:1;object-fit:cover">` : '<div style="color:var(--acc)">' + ic('paw', 44) + '</div>'}<b>${esc(p.name)}</b><br><small style="color:var(--mut)">${esc(p.kind || '')}</small><br><small style="color:var(--faint)">মালিক: ${esc(prof(p.user_id).name)}</small>${p.user_id === me.id ? `<br><button class="btn ghost sm" style="margin-top:6px" onclick="deletePet('${p.id}')">মুছো</button>` : ''}</div>`).join('')}</div>` : '<div class="card empty">এখনো কোনো পোষা প্রাণী যোগ হয়নি</div>';
 }
 function petSheet(){
-  sheet(`<h3>🐾 পোষা প্রাণী</h3><input class="field" id="ptName" placeholder="নাম (যেমন: মিনি)"><input class="field" id="ptKind" placeholder="কী প্রাণী? (বিড়াল/কুকুর/পাখি...)"><label style="font-size:13.5px;color:var(--mut)">ছবি <input type="file" id="ptImg" accept="image/*" style="font-size:12px"></label><button class="btn block" style="margin-top:10px" onclick="addPet()">যোগ করো</button>`);
+  sheet(`<h3>${ic('paw', 18)} পোষা প্রাণী</h3><input class="field" id="ptName" placeholder="নাম (যেমন: মিনি)"><input class="field" id="ptKind" placeholder="কী প্রাণী? (বিড়াল/কুকুর/পাখি...)"><label style="font-size:13.5px;color:var(--mut)">ছবি <input type="file" id="ptImg" accept="image/*" style="font-size:12px"></label><button class="btn block" style="margin-top:10px" onclick="addPet()">যোগ করো</button>`);
 }
 async function addPet(){
   const name = document.getElementById('ptName').value.trim(); if (!name) { toast('নাম দাও'); return; }
@@ -930,7 +1042,7 @@ async function deletePet(id){
   await sb.from('pets').delete().eq('id', id); renderPets();
 }
 function askAnon(uid){
-  sheet(`<h3>🙈 বেনামে প্রশ্ন করো</h3><p style="font-size:13px;color:var(--mut);margin-bottom:10px">তোমার নাম ওর কাছে যাবে না। ভদ্রভাবে প্রশ্ন করো।</p><textarea class="field" id="anonQ" placeholder="তোমার প্রশ্ন..."></textarea><button class="btn block" onclick="sendAnon('${uid}')">পাঠাও</button>`);
+  sheet(`<h3>${ic('eyeOff', 18)} বেনামে প্রশ্ন করো</h3><p style="font-size:13px;color:var(--mut);margin-bottom:10px">তোমার নাম ওর কাছে যাবে না। ভদ্রভাবে প্রশ্ন করো।</p><textarea class="field" id="anonQ" placeholder="তোমার প্রশ্ন..."></textarea><button class="btn block" onclick="sendAnon('${uid}')">পাঠাও</button>`);
 }
 async function sendAnon(uid){
   const body = document.getElementById('anonQ').value.trim(); if (!body) return;
@@ -941,7 +1053,7 @@ async function sendAnon(uid){
 }
 async function renderAnon(){
   curView = 'anon'; renderShell();
-  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">🙈 বেনামি প্রশ্নের ইনবক্স</div>
+  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">${ic('eyeOff', 19)} বেনামি প্রশ্নের ইনবক্স</div>
     <p style="padding:6px 16px 0;font-size:13px;color:var(--mut)">বন্ধুরা তোমার প্রোফাইল থেকে বেনামে প্রশ্ন করতে পারে। উত্তর দিলে সেটা তোমার উত্তরের জায়গায় দেখা যাবে।</p>
     <div id="anonList" style="padding:12px"><div class="empty">লোড হচ্ছে...</div></div></div>`;
   const { data } = await sb.from('anon_questions').select('*').eq('target', me.id).order('created_at', { ascending: false }).limit(40);
@@ -955,7 +1067,7 @@ async function answerAnon(qid){
 }
 async function renderCloseFriends(){
   curView = 'closefriends'; renderShell();
-  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">💚 কাছের বন্ধুরা</div>
+  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">${ic('heart', 19)} কাছের বন্ধুরা</div>
     <p style="padding:6px 16px 0;font-size:13px;color:var(--mut)">পোস্ট করার সময় "কাছের বন্ধুরা" বেছে নিলে শুধু এরাই দেখবে।</p>
     <div class="card" id="cfList" style="padding:6px 15px"><div class="empty">লোড হচ্ছে...</div></div></div>`;
   await loadMyRelations();
@@ -971,15 +1083,15 @@ async function toggleCloseFriend(uid, has){
 
 /* ---------- V2: PROFILE THEMES ---------- */
 const PROFILE_THEMES = [
-  ['sunset', '🌇 সূর্যাস্ত', 'linear-gradient(120deg,#F59E0B,#EF4444,#EC4899)'],
-  ['ocean', '🌊 সাগর', 'linear-gradient(120deg,#0EA5E9,#2563EB,#7C3AED)'],
-  ['forest', '🌲 বন', 'linear-gradient(120deg,#059669,#65A30D,#F59E0B)'],
-  ['royal', '👑 রাজকীয়', 'linear-gradient(120deg,#7C3AED,#DB2777,#F59E0B)'],
-  ['night', '🌃 রাতের আকাশ', 'linear-gradient(120deg,#111827,#374151,#6D28D9)']
+  ['sunset', 'সূর্যাস্ত', 'linear-gradient(120deg,#F59E0B,#EF4444,#EC4899)'],
+  ['ocean', 'সাগর', 'linear-gradient(120deg,#0EA5E9,#2563EB,#7C3AED)'],
+  ['forest', 'বন', 'linear-gradient(120deg,#059669,#65A30D,#F59E0B)'],
+  ['royal', 'রাজকীয়', 'linear-gradient(120deg,#7C3AED,#DB2777,#F59E0B)'],
+  ['night', 'রাতের আকাশ', 'linear-gradient(120deg,#111827,#374151,#6D28D9)']
 ];
 async function renderThemes(){
   curView = 'themes'; renderShell();
-  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">🎨 প্রোফাইল থিম</div>
+  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">${ic('palette', 19)} প্রোফাইল থিম</div>
     <p style="padding:6px 16px 0;font-size:13px;color:var(--mut)">১০০ টোকেনে প্রিমিয়াম থিম কিনলে তোমার প্রোফাইলের কভার জায়গায় সেই রঙ ঝলমল করবে। ব্যালেন্স: <b>${bn(me.tokens)}</b></p>
     <div style="padding:12px">${PROFILE_THEMES.map(([id, name, grad]) => `<div class="card" style="overflow:hidden"><div style="height:64px;border-radius:12px;background:${grad}"></div><div style="display:flex;align-items:center;margin-top:10px"><b style="flex:1">${name}</b>${me.theme === id ? '<span class="pill">চালু আছে ✓</span>' : `<button class="btn sm" onclick="buyTheme('${id}')">১০০ টোকেনে নাও</button>`}</div></div>`).join('')}
     ${me.theme ? `<button class="btn ghost block" onclick="buyTheme('')">থিম সরিয়ে দাও</button>` : ''}</div></div>`;
@@ -1144,12 +1256,12 @@ function postCard(p){
   return `<div class="card" id="post-${p.id}">
     <div class="chead">
       <a href="#" onclick="${openFn};return false">${avatar(a, 42, 16)}</a>
-      <div style="flex:1;min-width:0"><b><a href="#" style="color:var(--ink)" onclick="${openFn};return false">${esc(a.name)}</a>${pg ? '<span class="pill">পেজ</span>' : badges(a)}${p.pinned ? ' 📌' : ''}${boosted ? '<span class="boosted">বুস্ট করা</span>' : ''}</b>
+      <div style="flex:1;min-width:0"><b><a href="#" style="color:var(--ink)" onclick="${openFn};return false">${esc(a.name)}</a>${pg ? '<span class="pill">পেজ</span>' : badges(a)}${p.pinned ? ' ' + ic('pin', 13) : ''}${boosted ? '<span class="boosted">বুস্ট করা</span>' : ''}</b>
       <small>${timeAgo(p.created_at)}${p.location ? ' · 📍 ' + esc(p.location) : ''}${p.feeling ? ' · অনুভূতি: ' + esc(p.feeling) : ''}</small></div>
       <button class="icb" style="width:32px;height:32px" onclick="postMenu('${p.id}')">${I.dots}</button>
     </div>
     ${p.body ? `<div class="ptext">${linkTags(p.body)}</div>` : ''}
-    ${p.image_url ? (localStorage.getItem('adda-saver') === '1' ? `<button class="btn ghost sm" onclick="this.outerHTML='<img class=pimg src=\\'${esc(p.image_url)}\\'>'">🖼 ছবি দেখো (ডেটা সেভার)</button>` : `<img class="pimg" src="${esc(p.image_url)}" loading="lazy" alt="">`) : ''}
+    ${p.image_url ? (localStorage.getItem('adda-saver') === '1' ? `<button class="btn ghost sm" onclick="this.outerHTML='<img class=pimg src=\\'${esc(p.image_url)}\\'>'">${ic('img', 14)} ছবি দেখো (ডেটা সেভার)</button>` : `<img class="pimg" src="${esc(p.image_url)}" loading="lazy" alt="">`) : ''}
     ${p.video_url ? `<video class="pimg" src="${esc(p.video_url)}" controls preload="metadata" playsinline></video>` : ''}
     ${pollHtml(p)}
     <div class="counts"><span>${bn(p._likes)} লাইক</span><span>${bn(p._comments)} মন্তব্য</span></div>
@@ -1215,7 +1327,7 @@ async function openComments(postId){
   await cacheProfiles((comments || []).map(c => c.user_id));
   sheet(`<h3>মন্তব্য</h3>
     <div id="clist">${(comments || []).map(c => { const a = prof(c.user_id); return `<div class="row">${avatar(a, 34, 13)}<div style="flex:1"><b>${esc(a.name)}</b>${badges(a)}${c.audio_url ? `<audio controls src="${esc(c.audio_url)}" style="width:100%;height:34px;margin-top:4px"></audio>` : `<small style="display:block;color:var(--ink2);font-size:13.5px">${esc(c.body)}</small>`}<small>${timeAgo(c.created_at)}</small></div></div>`; }).join('') || '<div class="empty">এখনো কোনো মন্তব্য নেই — প্রথমটা তুমিই করো</div>'}</div>
-    <div style="display:flex;gap:8px;margin-top:12px;align-items:center"><input class="field" style="margin:0;flex:1" id="cinput" placeholder="মন্তব্য লেখো..."><label class="icb" style="cursor:pointer">🎤<input type="file" accept="audio/*" style="display:none" onchange="addVoiceComment('${postId}','${post ? post.user_id : ''}',this)"></label><button class="btn" onclick="addComment('${postId}','${post ? post.user_id : ''}')">পাঠাও</button></div>`);
+    <div style="display:flex;gap:8px;margin-top:12px;align-items:center"><input class="field" style="margin:0;flex:1" id="cinput" placeholder="মন্তব্য লেখো..."><label class="icb" style="cursor:pointer">${I.mic}<input type="file" accept="audio/*" style="display:none" onchange="addVoiceComment('${postId}','${post ? post.user_id : ''}',this)"></label><button class="btn" onclick="addComment('${postId}','${post ? post.user_id : ''}')">পাঠাও</button></div>`);
   $('#cinput').focus();
 }
 async function addVoiceComment(postId, ownerId, input){
@@ -1243,15 +1355,15 @@ function postMenu(postId){
     const mine = p.user_id === me.id;
     const boosted = p.boost_until && new Date(p.boost_until) > new Date();
     $('#pmenu').innerHTML = `
-      ${mine ? `<button class="menu-item" onclick="editPost('${p.id}')">✏️ পোস্ট এডিট করো</button>
-      <button class="menu-item" onclick="togglePin('${p.id}',${p.pinned ? 'false' : 'true'})">${p.pinned ? '📌 পিন সরাও' : '📌 প্রোফাইলে পিন করো'}</button>
-      <button class="menu-item" onclick="toggleArchive('${p.id}',${p.archived ? 'false' : 'true'})">🗄 ${p.archived ? 'আর্কাইভ থেকে ফেরাও' : 'আর্কাইভ করো'}</button>
-      <button class="menu-item" onclick="speakPost('${p.id}')">🔊 পোস্ট পড়ে শোনাও</button>
-      <button class="menu-item" onclick="translatePost('${p.id}')">🌐 ইংরেজিতে অনুবাদ</button>
-      ${!boosted ? `<button class="menu-item" onclick="boostPost('${p.id}')">🚀 বুস্ট করো (৫০ টোকেন, ২৪ ঘণ্টা)</button>` : '<div class="menu-item">🚀 এই পোস্ট বুস্ট অবস্থায় আছে</div>'}
-      <button class="menu-item" style="color:var(--danger)" onclick="deletePost('${p.id}')">🗑 পোস্ট মুছে ফেলো</button>`
-      : `<button class="menu-item" onclick="reportItem('post','${p.id}')">🚩 রিপোর্ট করো</button>
-         <button class="menu-item" style="color:var(--danger)" onclick="blockUser('${p.user_id}')">🚫 এই ব্যবহারকারীকে ব্লক করো</button>`}
+      ${mine ? `<button class="menu-item" onclick="editPost('${p.id}')">${ic('edit')} পোস্ট এডিট করো</button>
+      <button class="menu-item" onclick="togglePin('${p.id}',${p.pinned ? 'false' : 'true'})">${p.pinned ? ic('pin') + ' পিন সরাও' : ic('pin') + ' প্রোফাইলে পিন করো'}</button>
+      <button class="menu-item" onclick="toggleArchive('${p.id}',${p.archived ? 'false' : 'true'})">${ic('archive')} ${p.archived ? 'আর্কাইভ থেকে ফেরাও' : 'আর্কাইভ করো'}</button>
+      <button class="menu-item" onclick="speakPost('${p.id}')">${ic('volume')} পোস্ট পড়ে শোনাও</button>
+      <button class="menu-item" onclick="translatePost('${p.id}')">${ic('globe')} ইংরেজিতে অনুবাদ</button>
+      ${!boosted ? `<button class="menu-item" onclick="boostPost('${p.id}')">${ic('rocket')} বুস্ট করো (৫০ টোকেন, ২৪ ঘণ্টা)</button>` : '<div class="menu-item">' + ic('rocket') + ' এই পোস্ট বুস্ট অবস্থায় আছে</div>'}
+      <button class="menu-item" style="color:var(--danger)" onclick="deletePost('${p.id}')">${ic('trash')} পোস্ট মুছে ফেলো</button>`
+      : `<button class="menu-item" onclick="reportItem('post','${p.id}')">${ic('flag')} রিপোর্ট করো</button>
+         <button class="menu-item" style="color:var(--danger)" onclick="blockUser('${p.user_id}')">${ic('ban')} এই ব্যবহারকারীকে ব্লক করো</button>`}
       <button class="menu-item" onclick="closeSheet()">বন্ধ করো</button>`;
   });
 }
@@ -1300,7 +1412,7 @@ async function translatePost(postId){
     const r = await fetch('https://api.mymemory.translated.net/get?q=' + encodeURIComponent(data.body.slice(0, 450)) + '&langpair=bn|en');
     const j = await r.json();
     const t = j.responseData && j.responseData.translatedText;
-    sheet(`<h3>🌐 English translation</h3><p style="font-size:14.5px;line-height:1.7">${esc(t || 'পাওয়া যায়নি')}</p>`);
+    sheet(`<h3>${ic('globe', 17)} English translation</h3><p style="font-size:14.5px;line-height:1.7">${esc(t || 'পাওয়া যায়নি')}</p>`);
   } catch { toast('অনুবাদ হয়নি — নেট চেক করো'); }
 }
 async function reportItem(type, id){
@@ -1320,22 +1432,22 @@ function openComposer(groupId = null, pageId = null){
     <div style="display:flex;gap:8px"><input class="field" style="flex:1" id="postFeeling" placeholder="অনুভূতি (ঐচ্ছিক)"><input class="field" style="flex:1" id="postLoc" placeholder="জায়গা (ঐচ্ছিক)"></div>
     <div style="display:flex;gap:8px;align-items:center">
       <select class="field" id="postAudience" style="flex:1">
-        <option value="public">🌍 সবাই দেখবে</option>
-        <option value="friends">👥 শুধু বন্ধুরা</option>
-        <option value="close">💚 কাছের বন্ধুরা</option>
-        <option value="supporters">⭐ ফলোয়াররা</option>
+        <option value="public">সবাই দেখবে</option>
+        <option value="friends">শুধু বন্ধুরা</option>
+        <option value="close">কাছের বন্ধুরা</option>
+        <option value="supporters">ফলোয়াররা</option>
       </select>
       <input class="field" type="datetime-local" id="postWhen" style="flex:1" title="পরে প্রকাশ করতে চাইলে সময় দাও">
     </div>
-    <label style="display:flex;gap:8px;align-items:center;font-size:13.5px;color:var(--mut);margin:4px 0 6px">${I.img} ছবি যোগ করো <input type="file" id="postImg" accept="image/*" style="font-size:12px"></label>
-    <label style="display:flex;gap:8px;align-items:center;font-size:13.5px;color:var(--mut);margin:0 0 6px">🎬 ভিডিও যোগ করো <input type="file" id="postVid" accept="video/*" style="font-size:12px"></label>
-    <label style="display:flex;gap:8px;align-items:center;font-size:13.5px;color:var(--mut);margin:0 0 10px">🖼 কোলাজ বানাও (২-৪টি ছবি) <input type="file" id="postCollage" accept="image/*" multiple style="font-size:12px"></label>
+    <label style="display:flex;gap:8px;align-items:center;font-size:13.5px;color:var(--mut);margin:4px 0 6px">${ic('img', 16)} ছবি যোগ করো <input type="file" id="postImg" accept="image/*" style="font-size:12px"></label>
+    <label style="display:flex;gap:8px;align-items:center;font-size:13.5px;color:var(--mut);margin:0 0 6px">${ic('video', 16)} ভিডিও যোগ করো <input type="file" id="postVid" accept="video/*" style="font-size:12px"></label>
+    <label style="display:flex;gap:8px;align-items:center;font-size:13.5px;color:var(--mut);margin:0 0 10px">${ic('grid', 16)} কোলাজ বানাও (২-৪টি ছবি) <input type="file" id="postCollage" accept="image/*" multiple style="font-size:12px"></label>
     <div id="pollBox" style="display:none">
       <input class="field poll-opt" placeholder="অপশন ১"><input class="field poll-opt" placeholder="অপশন ২">
       <input class="field poll-opt" placeholder="অপশন ৩ (ঐচ্ছিক)"><input class="field poll-opt" placeholder="অপশন ৪ (ঐচ্ছিক)">
     </div>
     <div style="display:flex;gap:8px">
-      <button class="btn ghost" style="flex:1" onclick="document.getElementById('pollBox').style.display='block'">📊 পোল যোগ করো</button>
+      <button class="btn ghost" style="flex:1" onclick="document.getElementById('pollBox').style.display='block'">${ic('chart', 15)} পোল যোগ করো</button>
       <button class="btn" style="flex:2" onclick="submitPost(${groupId ? `'${groupId}'` : 'null'},${pageId ? `'${pageId}'` : 'null'})">পোস্ট করো</button>
     </div>`);
   $('#postBody').focus();
@@ -1418,7 +1530,7 @@ async function viewPost(postId){
 async function openMemory(postId){
   const { data } = await sb.from('posts').select('*').eq('id', postId).single();
   if (!data) return;
-  sheet(`<h3>🕰 এই দিনে</h3>` + (await fetchPostsByIds([data])).map(postCard).join(''));
+  sheet(`<h3>${ic('clock', 18)} এই দিনে</h3>` + (await fetchPostsByIds([data])).map(postCard).join(''));
 }
 let myStories = [];
 async function renderStoriesRow(){
@@ -1440,10 +1552,10 @@ async function renderStoriesRow(){
   row.innerHTML = html;
 }
 function openStoryComposer(){
-  sheet(`<h3>📸 নতুন স্টোরি (২৪ ঘণ্টা থাকবে)</h3>
+  sheet(`<h3>${ic('camera', 18)} নতুন স্টোরি (২৪ ঘণ্টা থাকবে)</h3>
     <input class="field" id="storyText" placeholder="লেখা (ঐচ্ছিক)">
-    <label style="display:flex;gap:8px;align-items:center;font-size:13.5px;color:var(--mut);margin:6px 0">🖼 ছবি <input type="file" id="storyImg" accept="image/*" style="font-size:12px"></label>
-    <label style="display:flex;gap:8px;align-items:center;font-size:13.5px;color:var(--mut);margin:0 0 12px">🎤 ভয়েস <input type="file" id="storyAud" accept="audio/*" style="font-size:12px"></label>
+    <label style="display:flex;gap:8px;align-items:center;font-size:13.5px;color:var(--mut);margin:6px 0">${ic('img', 16)} ছবি <input type="file" id="storyImg" accept="image/*" style="font-size:12px"></label>
+    <label style="display:flex;gap:8px;align-items:center;font-size:13.5px;color:var(--mut);margin:0 0 12px">${ic('mic', 16)} ভয়েস <input type="file" id="storyAud" accept="audio/*" style="font-size:12px"></label>
     <button class="btn" style="width:100%" onclick="submitStory()">স্টোরি দাও</button>`);
 }
 async function submitStory(){
@@ -1467,7 +1579,7 @@ function openStory(uid){
       ${s.image_url ? `<img src="${esc(s.image_url)}" style="width:100%;border-radius:14px">` : ''}
       ${s.audio_url ? `<audio controls src="${esc(s.audio_url)}" style="width:100%"></audio>` : ''}
       ${s.body ? `<p style="font-size:15px;margin:6px 0">${esc(s.body)}</p>` : ''}
-      ${uid === me.id ? `<button class="btn ghost sm" onclick="deleteStory('${s.id}')">🗑 মুছো</button>` : `<button class="btn ghost sm" onclick="closeSheet();openChat('${uid}')">💬 রিপ্লাই দাও</button>`}
+      ${uid === me.id ? `<button class="btn ghost sm" onclick="deleteStory('${s.id}')">${ic('trash', 14)} মুছো</button>` : `<button class="btn ghost sm" onclick="closeSheet();openChat('${uid}')">${ic('comment', 14)} রিপ্লাই দাও</button>`}
     </div>`).join(''));
 }
 async function deleteStory(id){
@@ -1478,18 +1590,18 @@ async function renderFeed(tagFilter = null){
   curView = 'feed'; renderShell();
   view().innerHTML = `<div class="view">
     <div class="stories" id="storiesRow"></div>
-    <button class="composer" onclick="openComposer()">${avatar(me, 38, 15)}<span class="fake">মনে কী চলছে?</span><span style="color:var(--acc);display:flex">${I.img}</span></button>
+    <button class="composer" onclick="openComposer()">${avatar(me, 38, 15)}<span class="fake">মনে কী চলছে?</span><span style="color:var(--acc);display:flex">${ic('img', 20)}</span></button>
     <div style="display:flex;gap:8px;padding:12px 12px 0">
-      <button class="btn ghost sm" style="flex:1" onclick="go('groups')">👥 গ্রুপ</button>
-      ${localStorage.getItem('adda-kid') === '1' ? '' : `<button class="btn ghost sm" style="flex:1" onclick="go('dating')">💘 মনের মানুষ</button>`}
+      <button class="btn ghost sm" style="flex:1" onclick="go('groups')">${ic('users', 15)} গ্রুপ</button>
+      ${localStorage.getItem('adda-kid') === '1' ? '' : `<button class="btn ghost sm" style="flex:1" onclick="go('dating')">${ic('heart', 15)} মনের মানুষ</button>`}
     </div>
     <div style="display:flex;gap:8px;padding:8px 12px 0">
-      <button class="btn ghost sm" style="flex:1" onclick="go('market')">🛍 বাজার</button>
-      <button class="btn ghost sm" style="flex:1" onclick="go('service')">🤝 সেবা বোর্ড</button>
-      <button class="btn ghost sm" style="flex:1" onclick="go('events')">📅 ইভেন্ট</button>
-      <button class="btn ghost sm" style="flex:1" onclick="go('pages')">📄 পেজ</button>
+      <button class="btn ghost sm" style="flex:1" onclick="go('market')">${ic('bag', 15)} বাজার</button>
+      <button class="btn ghost sm" style="flex:1" onclick="go('service')">${ic('hand', 15)} সেবা বোর্ড</button>
+      <button class="btn ghost sm" style="flex:1" onclick="go('events')">${ic('calendar', 15)} ইভেন্ট</button>
+      <button class="btn ghost sm" style="flex:1" onclick="go('pages')">${ic('file', 15)} পেজ</button>
     </div>
-    ${tagFilter ? `<div style="padding:12px 16px 0;font-size:14px">ট্যাগ: <b>#${esc(tagFilter)}</b> <a href="#" onclick="renderFeed();return false">✕ সব দেখো</a></div>` : ''}
+    ${tagFilter ? `<div style="padding:12px 16px 0;font-size:14px">ট্যাগ: <b>#${esc(tagFilter)}</b> <a href="#" onclick="renderFeed();return false">${ic('x', 13)} সব দেখো</a></div>` : ''}
     <div id="feedBanners" style="padding:12px 12px 0"></div>
     <div id="feedList"><div class="empty">লোড হচ্ছে...</div></div></div>`;
   renderStoriesRow();
@@ -1579,7 +1691,7 @@ async function renderTrending(){
 function renderSearch(){
   curView = 'search'; renderShell();
   view().innerHTML = `<div class="view">
-    <div class="searchbar">🔍<input id="q" placeholder="মানুষ, পোস্ট বা গ্রুপ খোঁজো..." oninput="doSearch(this.value)"></div>
+    <div class="searchbar">${ic('search', 17)}<input id="q" placeholder="মানুষ, পোস্ট বা গ্রুপ খোঁজো..." oninput="doSearch(this.value)"></div>
     <div id="searchRes"><div class="empty">নাম, জায়গা বা যেকোনো শব্দ লিখে খোঁজো</div></div></div>`;
   $('#q').focus();
 }
@@ -1642,19 +1754,19 @@ async function renderProfile(uid){
       <p style="color:var(--mut);font-size:13px;margin-top:3px">${p.city ? '📍 ' + esc(p.city) + ' · ' : ''}${bn(friendCount)} জন বন্ধু${p.birthday ? ' · 🎂 ' + esc(p.birthday) : ''}</p>
       <div id="scamLabel"></div>
       <div style="margin-top:8px;display:flex;gap:8px;justify-content:center">
-        <button class="btn ghost sm" onclick="copyProfileLink('${uid}')">🔗 লিংক কপি</button>
-        <button class="btn ghost sm" onclick="showProfileQR('${uid}')">QR কোড</button>
-        ${mine ? `<button class="btn ghost sm" onclick="renderViewers()">👁 কে দেখল</button>` : ''}
+        <button class="btn ghost sm" onclick="copyProfileLink('${uid}')">${ic('link', 14)} লিংক কপি</button>
+        <button class="btn ghost sm" onclick="showProfileQR('${uid}')">${ic('qr', 14)} QR কোড</button>
+        ${mine ? `<button class="btn ghost sm" onclick="renderViewers()">${ic('eye', 14)} কে দেখল</button>` : ''}
       </div>
       ${p.bio ? `<p style="font-size:13.5px;color:var(--ink2);margin-top:7px;line-height:1.6">${esc(p.bio)}</p>` : ''}
       <div style="margin-top:12px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
       ${mine ? `<button class="btn" onclick="editProfile()">প্রোফাইল এডিট</button>
-        <button class="btn ghost" onclick="go('settings')">⚙️ সেটিংস</button>`
+        <button class="btn ghost" onclick="go('settings')">${ic('gear', 14)} সেটিংস</button>`
       : `${friendIds.has(uid) ? `<button class="btn ghost" onclick="unfriend('${uid}')">বন্ধু ✓</button>` : `<button class="btn" onclick="sendFriendReq('${uid}',this)">বন্ধু যোগ করো</button>`}
         <button class="btn ${followIds.has(uid) ? 'ghost' : ''}" onclick="toggleFollow('${uid}',this)">${followIds.has(uid) ? 'ফলো করছ ✓' : 'ফলো করো'}</button>
         <button class="btn" onclick="startChat('${uid}')">মেসেজ</button>
-        <button class="btn ghost" onclick="giftTokens('${uid}')">🎁 উপহার (১০০)</button>
-        <button class="btn ghost" onclick="askAnon('${uid}')">🙈 বেনামে প্রশ্ন</button>`}
+        <button class="btn ghost" onclick="giftTokens('${uid}')">${ic('gift', 14)} উপহার (১০০)</button>
+        <button class="btn ghost" onclick="askAnon('${uid}')">${ic('eyeOff', 14)} বেনামে প্রশ্ন</button>`}
       </div></div>
     <div class="stats"><div><b>${bn(postsRes.count || 0)}</b><small>পোস্ট</small></div><div><b>${bn(friendCount)}</b><small>বন্ধু</small></div><div><b>${bn((followersRes.data || []).length)}</b><small>ফলোয়ার</small></div></div>
     <div class="seclabel">পরিচিতি</div>
@@ -1698,7 +1810,7 @@ function showProfileQR(uid){
 }
 async function renderViewers(){
   curView = 'viewers'; renderShell();
-  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">👁 প্রোফাইল দর্শক</div><div class="card" id="viewerList" style="padding:6px 15px"><div class="empty">লোড হচ্ছে...</div></div></div>`;
+  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">${ic('eye', 19)} প্রোফাইল দর্শক</div><div class="card" id="viewerList" style="padding:6px 15px"><div class="empty">লোড হচ্ছে...</div></div></div>`;
   const { data } = await sb.from('profile_views').select('*').eq('profile', me.id).order('created_at', { ascending: false }).limit(40);
   await cacheProfiles((data || []).map(v => v.viewer));
   const el = document.getElementById('viewerList');
@@ -1718,18 +1830,18 @@ function editProfile(){
     <input class="field" id="epName" value="${esc(me.name)}" placeholder="নাম">
     <input class="field" id="epUsername" value="${esc(me.username || '')}" placeholder="ইউজারনেম (ইংরেজি ছোট হাতের, যেমন: limon.bd)">
     <input class="field" id="epCity" value="${esc(me.city || '')}" placeholder="শহর (যেমন: ঢাকা)">
-    <label style="display:block;font-size:13px;color:var(--mut);margin:2px 0 4px">🎂 জন্মদিন <input class="field" type="date" id="epBirthday" value="${esc(me.birthday || '')}" style="margin:0"></label>
+    <label style="display:block;font-size:13px;color:var(--mut);margin:2px 0 4px">জন্মদিন <input class="field" type="date" id="epBirthday" value="${esc(me.birthday || '')}" style="margin:0"></label>
     <input class="field" id="epEmergency" value="${esc(me.emergency || '')}" placeholder="জরুরি যোগাযোগ (শুধু তুমিই দেখবে)">
-    <input class="field" id="epWork" value="${esc(me.work || '')}" placeholder="💼 কাজ / পেশা (যেমন: ছাত্র, শিক্ষক)">
-    <input class="field" id="epEdu" value="${esc(me.education || '')}" placeholder="🎓 পড়াশোনা (যেমন: ঢাকা বিশ্ববিদ্যালয়)">
-    <input class="field" id="epHome" value="${esc(me.hometown || '')}" placeholder="🏠 নিজ শহর (যেমন: রাজশাহী)">
-    <select class="field" id="epRel"><option value="">❤️ সম্পর্কের অবস্থা (ঐচ্ছিক)</option>${['অবিবাহিত', 'সম্পর্কে আছি', 'বিবাহিত', 'জটিল'].map(r => `<option ${me.relationship === r ? 'selected' : ''}>${r}</option>`).join('')}</select>
-    <select class="field" id="epGender"><option value="">👤 লিঙ্গ (ঐচ্ছিক)</option>${['পুরুষ', 'মহিলা', 'অন্যান্য'].map(g => `<option ${me.gender === g ? 'selected' : ''}>${g}</option>`).join('')}</select>
-    <input class="field" id="epNick" value="${esc(me.nickname || '')}" placeholder="🏷 ডাকনাম (যেমন: লিমন)">
-    <input class="field" id="epLang" value="${esc(me.languages || '')}" placeholder="🗣 ভাষা (যেমন: বাংলা, English)">
-    <input class="field" id="epWeb" value="${esc(me.website || '')}" placeholder="🌐 ওয়েবসাইট (যেমন: example.com)">
-    <input class="field" id="epHobby" value="${esc(me.hobbies || '')}" placeholder="🎨 শখ (যেমন: বই পড়া, ফুটবল, গান)">
-    <input class="field" id="epQuote" value="${esc(me.quote || '')}" placeholder="💬 পছন্দের উক্তি">
+    <input class="field" id="epWork" value="${esc(me.work || '')}" placeholder="কাজ / পেশা (যেমন: ছাত্র, শিক্ষক)">
+    <input class="field" id="epEdu" value="${esc(me.education || '')}" placeholder="পড়াশোনা (যেমন: ঢাকা বিশ্ববিদ্যালয়)">
+    <input class="field" id="epHome" value="${esc(me.hometown || '')}" placeholder="নিজ শহর (যেমন: রাজশাহী)">
+    <select class="field" id="epRel"><option value="">সম্পর্কের অবস্থা (ঐচ্ছিক)</option>${['অবিবাহিত', 'সম্পর্কে আছি', 'বিবাহিত', 'জটিল'].map(r => `<option ${me.relationship === r ? 'selected' : ''}>${r}</option>`).join('')}</select>
+    <select class="field" id="epGender"><option value="">লিঙ্গ (ঐচ্ছিক)</option>${['পুরুষ', 'মহিলা', 'অন্যান্য'].map(g => `<option ${me.gender === g ? 'selected' : ''}>${g}</option>`).join('')}</select>
+    <input class="field" id="epNick" value="${esc(me.nickname || '')}" placeholder="ডাকনাম (যেমন: লিমন)">
+    <input class="field" id="epLang" value="${esc(me.languages || '')}" placeholder="ভাষা (যেমন: বাংলা, English)">
+    <input class="field" id="epWeb" value="${esc(me.website || '')}" placeholder="ওয়েবসাইট (যেমন: example.com)">
+    <input class="field" id="epHobby" value="${esc(me.hobbies || '')}" placeholder="শখ (যেমন: বই পড়া, ফুটবল, গান)">
+    <input class="field" id="epQuote" value="${esc(me.quote || '')}" placeholder="পছন্দের উক্তি">
     <textarea class="field" id="epBio" placeholder="নিজের সম্পর্কে দু-এক লাইন">${esc(me.bio || '')}</textarea>
     <label style="display:block;font-size:13.5px;color:var(--mut);margin:2px 0 4px">প্রোফাইল ছবি <input type="file" id="epAvatar" accept="image/*" style="font-size:12px"></label>
     <label style="display:block;font-size:13.5px;color:var(--mut);margin:6px 0 12px">কভার ছবি <input type="file" id="epCover" accept="image/*" style="font-size:12px"></label>
@@ -1753,7 +1865,7 @@ async function renderSaved(){
 }
 
 /* ---------- GROUPS ---------- */
-const GCATS = [['#4F46E5','🎓'],['#059669','⚽'],['#DB2777','🎵'],['#D97706','🍜'],['#0891B2','💻'],['#7C3AED','📚']];
+const GCATS = [['#4F46E5','grad'],['#059669','ball'],['#DB2777','music'],['#D97706','utensils'],['#0891B2','code'],['#7C3AED','book']];
 async function renderGroups(){
   curView = 'groups'; renderShell();
   view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">গ্রুপ</div>
@@ -1769,7 +1881,7 @@ async function renderGroups(){
 function groupRow(g, memberCount){
   const [col, em] = GCATS[(g.name || '').length % GCATS.length];
   const joined = window._myGroups && window._myGroups.has(g.id);
-  return `<div class="grp"><span class="gic" style="background:${col}">${em}</span>
+  return `<div class="grp"><span class="gic" style="background:${col}">${ic(em, 20)}</span>
     <div style="flex:1;min-width:0"><b style="font-size:14.5px">${esc(g.name)}</b><small style="display:block;color:var(--faint);font-size:11.5px">${esc(g.category || 'সাধারণ')} · ${memberCount !== undefined ? bn(memberCount) + ' সদস্য' : ''}</small></div>
     <button class="btn ${joined ? 'ghost' : ''} sm" onclick="openGroup('${g.id}')">${joined ? 'খোলো' : 'যোগ দাও'}</button></div>`;
 }
@@ -1810,7 +1922,7 @@ async function renderGroupDetail(gid){
       <button class="btn ghost" style="flex:1" onclick="openGroupChat('${gid}')">গ্রুপ চ্যাট</button>
       <button class="btn ghost" onclick="leaveGroup('${gid}')">ছাড়ো</button>
     </div></div>
-    <div class="card" style="margin:12px"><b>💰 গ্রুপ তহবিল</b><div id="fundBox" style="margin-top:6px"><small style="color:var(--mut)">লোড হচ্ছে...</small></div>
+    <div class="card" style="margin:12px"><b>${ic('wallet', 16)} গ্রুপ তহবিল</b><div id="fundBox" style="margin-top:6px"><small style="color:var(--mut)">লোড হচ্ছে...</small></div>
       <div style="display:flex;gap:8px;margin-top:8px"><input class="field" type="number" id="fundAmt" placeholder="টোকেনের পরিমাণ" style="margin:0;flex:1" min="1" max="1000"><button class="btn sm" onclick="contributeFund('${gid}')">জমা দাও</button></div>
       <div id="fundTxns" style="margin-top:8px"></div></div>
     <div class="seclabel">গ্রুপের পোস্ট</div><div id="groupPosts"><div class="empty">লোড হচ্ছে...</div></div></div>`;
@@ -1862,7 +1974,7 @@ async function renderChatList(){
     const others = (members || []).filter(m => m.conversation_id === c.id && m.user_id !== me.id);
     const lm = lastMsg[c.id];
     let title, avHtml;
-    if (c.is_group && c.group_id && groupMap[c.group_id]) { const g = groupMap[c.group_id]; title = g.name + ' (গ্রুপ)'; avHtml = `<span class="av" style="background:#4F46E5;width:47px;height:47px;font-size:17px">👥</span>`; }
+    if (c.is_group && c.group_id && groupMap[c.group_id]) { const g = groupMap[c.group_id]; title = g.name + ' (গ্রুপ)'; avHtml = `<span class="av" style="background:#4F46E5;width:47px;height:47px;font-size:17px">${ic('users', 20)}</span>`; }
     else if (others.length) { const p = prof(others[0].user_id); title = p.name; avHtml = avatar(p, 47, 17); }
     else { title = 'চ্যাট'; avHtml = avatar(null, 47, 17); }
     return { c, title, avHtml, lm };
@@ -1907,7 +2019,7 @@ async function openChat(convId){
   let title = 'চ্যাট', headAv = '';
   if (conv && conv.is_group && conv.group_id) {
     const { data: g } = await sb.from('groups').select('name').eq('id', conv.group_id).single();
-    title = (g ? g.name : 'গ্রুপ') + ' · গ্রুপ চ্যাট'; headAv = `<span class="av" style="background:#4F46E5;width:38px;height:38px;font-size:15px">👥</span>`;
+    title = (g ? g.name : 'গ্রুপ') + ' · গ্রুপ চ্যাট'; headAv = `<span class="av" style="background:#4F46E5;width:38px;height:38px;font-size:15px">${ic('users', 18)}</span>`;
   } else {
     const other = (members || []).find(m => m.user_id !== me.id);
     if (other) { const p = prof(other.user_id); title = p.name; headAv = avatar(p, 38, 15); }
@@ -1916,7 +2028,7 @@ async function openChat(convId){
     <div style="display:flex;gap:10px;align-items:center;padding:12px 16px;background:var(--card);border-bottom:1px solid var(--line2);position:sticky;top:57px;z-index:5">
       <button class="icb" style="width:34px;height:34px" onclick="renderChatList()">←</button>${headAv}<b style="font-size:15.5px">${esc(title)}</b></div>
     <div id="msgList" style="padding:10px 0 4px"><div class="empty">লোড হচ্ছে...</div></div>
-    <div class="chatbar"><button class="icb" onclick="stickerSheet('${convId}')" aria-label="স্টিকার">😊</button><label class="icb" style="cursor:pointer" aria-label="ভয়েস মেসেজ">🎤<input type="file" accept="audio/*" style="display:none" onchange="sendVoiceMsg('${convId}',this)"></label><input id="msgInput" placeholder="মেসেজ লেখো..." onkeydown="if(event.key==='Enter')sendMsg('${convId}')"><button class="send" onclick="sendMsg('${convId}')">${I.send}</button></div></div>`;
+    <div class="chatbar"><button class="icb" onclick="stickerSheet('${convId}')" aria-label="স্টিকার">${I.smile}</button><label class="icb" style="cursor:pointer" aria-label="ভয়েস মেসেজ">${I.mic}<input type="file" accept="audio/*" style="display:none" onchange="sendVoiceMsg('${convId}',this)"></label><input id="msgInput" placeholder="মেসেজ লেখো..." onkeydown="if(event.key==='Enter')sendMsg('${convId}')"><button class="send" onclick="sendMsg('${convId}')">${ic('send', 18)}</button></div></div>`;
   const { data: msgs } = await sb.from('messages').select('*').eq('conversation_id', convId).order('created_at').limit(200);
   $('#msgList').innerHTML = (msgs || []).length ? msgs.map(msgHtml).join('') : '<div class="empty">প্রথম মেসেজটা পাঠাও 👋</div>';
   window.scrollTo(0, document.body.scrollHeight);
@@ -1976,63 +2088,63 @@ async function renderSettings(){
   curView = 'settings'; renderShell();
   const { data: fresh } = await sb.from('profiles').select('tokens').eq('id', me.id).single();
   if (fresh) me.tokens = fresh.tokens;
-  const tg = (key, label) => `<button class="menu-item" onclick="toggleLocal('${key}','${label}')">${label}<span style="margin-left:auto" class="pill">${localStorage.getItem(key) === '1' ? 'চালু' : 'বন্ধ'}</span></button>`;
+  const tg = (key, icn, label) => `<button class="menu-item" onclick="toggleLocal('${key}','${label}')">${ic(icn)} ${label}<span style="margin-left:auto" class="pill">${localStorage.getItem(key) === '1' ? 'চালু' : 'বন্ধ'}</span></button>`;
   view().innerHTML = `<div class="view">
     <div style="padding:14px 16px 0;font-size:18px;font-weight:800">সেটিংস</div>
-    <div class="card" style="display:flex;gap:12px;align-items:center;background:linear-gradient(120deg,#EEF2FF,#F5F3FF)">
+    <div class="card" style="display:flex;gap:12px;align-items:center;background:linear-gradient(120deg,rgba(99,102,241,.14),rgba(168,85,247,.14))">
       ${avatar(me, 52, 19)}
-      <div style="flex:1;min-width:0"><b style="font-size:16.5px">${esc(me.name)}</b>${badges(me)}<br><small style="color:var(--mut)">${me.username ? '@' + esc(me.username) + ' · ' : ''}🪙 ${bn(me.tokens)} টোকেন · 🔥 ${bn(me.login_streak || 0)} দিনের স্ট্রিক</small></div>
+      <div style="flex:1;min-width:0"><b style="font-size:16.5px">${esc(me.name)}</b>${badges(me)}<br><small style="color:var(--mut)">${me.username ? '@' + esc(me.username) + ' · ' : ''}${ic('wallet', 13)} <span>${bn(me.tokens)} টোকেন</span> · ${ic('fire', 13)} <span>${bn(me.login_streak || 0)} দিনের স্ট্রিক</span></small></div>
       <button class="btn sm" onclick="renderProfile('${me.id}')">প্রোফাইল</button>
     </div>
     <div class="seclabel">আমার জিনিস</div>
     <div class="card" style="padding:6px 15px">
-      <button class="menu-item" onclick="editProfile()">✏️ প্রোফাইল এডিট</button>
-      <button class="menu-item" onclick="go('tokens')">🪙 টোকেন ওয়ালেট <span style="margin-left:auto;font-weight:800;color:var(--acc)">${bn(me.tokens)}</span></button>
-      <button class="menu-item" onclick="renderTokens()">🔥 লগইন স্ট্রিক <span style="margin-left:auto;font-weight:800">${bn(me.login_streak || 0)} দিন</span></button>
-      <button class="menu-item" onclick="go('saved')">🔖 সেভ করা পোস্ট</button>
-      <button class="menu-item" onclick="go('archived')">🗄 আর্কাইভ করা পোস্ট</button>
-      <button class="menu-item" onclick="renderViewers()">👁 প্রোফাইল দর্শক</button>
-      <button class="menu-item" onclick="go('albums')">🖼 আমার অ্যালবাম</button>
-      <button class="menu-item" onclick="go('closefriends')">💚 কাছের বন্ধুরা</button>
-      <button class="menu-item" onclick="go('anon')">🙈 বেনামি প্রশ্নের ইনবক্স</button>
-      <button class="menu-item" onclick="downloadMyData()">📥 আমার ডেটা ডাউনলোড</button>
+      <button class="menu-item" onclick="editProfile()">${ic('edit')} প্রোফাইল এডিট</button>
+      <button class="menu-item" onclick="go('tokens')">${ic('wallet')} টোকেন ওয়ালেট <span style="margin-left:auto;font-weight:800;color:var(--acc)">${bn(me.tokens)}</span></button>
+      <button class="menu-item" onclick="renderTokens()">${ic('fire')} লগইন স্ট্রিক <span style="margin-left:auto;font-weight:800">${bn(me.login_streak || 0)} দিন</span></button>
+      <button class="menu-item" onclick="go('saved')">${ic('bookmark')} সেভ করা পোস্ট</button>
+      <button class="menu-item" onclick="go('archived')">${ic('archive')} আর্কাইভ করা পোস্ট</button>
+      <button class="menu-item" onclick="renderViewers()">${ic('eye')} প্রোফাইল দর্শক</button>
+      <button class="menu-item" onclick="go('albums')">${ic('img')} আমার অ্যালবাম</button>
+      <button class="menu-item" onclick="go('closefriends')">${ic('heart')} কাছের বন্ধুরা</button>
+      <button class="menu-item" onclick="go('anon')">${ic('eyeOff')} বেনামি প্রশ্নের ইনবক্স</button>
+      <button class="menu-item" onclick="downloadMyData()">${ic('download')} আমার ডেটা ডাউনলোড</button>
     </div>
     <div class="seclabel">মজা ও শেখা</div>
     <div class="card" style="padding:6px 15px">
-      <button class="menu-item" onclick="go('creator')">📊 ক্রিয়েটর ড্যাশবোর্ড</button>
-      <button class="menu-item" onclick="go('themes')">🎨 প্রোফাইল থিম</button>
+      <button class="menu-item" onclick="go('creator')">${ic('chart')} ক্রিয়েটর ড্যাশবোর্ড</button>
+      <button class="menu-item" onclick="go('themes')">${ic('palette')} প্রোফাইল থিম</button>
     </div>
     <div class="seclabel">কমিউনিটি</div>
     <div class="card" style="padding:6px 15px">
-      <button class="menu-item" onclick="go('groups')">👥 গ্রুপ</button>
-      <button class="menu-item" onclick="go('pages')">📄 পেজ</button>
-      <button class="menu-item" onclick="go('events')">📅 ইভেন্ট</button>
-      <button class="menu-item" onclick="go('market')">🛍 আড্ডা বাজার</button>
-      <button class="menu-item" onclick="go('service')">🤝 সেবা বোর্ড (রক্ত · হারানো · চাকরি)</button>
-      <button class="menu-item" onclick="go('gov')">🏛 সরকারি সেবা ও কর্নার</button>
-      ${localStorage.getItem('adda-kid') === '1' ? '' : `<button class="menu-item" onclick="go('dating')">💘 মনের মানুষ</button>`}
+      <button class="menu-item" onclick="go('groups')">${ic('users')} গ্রুপ</button>
+      <button class="menu-item" onclick="go('pages')">${ic('file')} পেজ</button>
+      <button class="menu-item" onclick="go('events')">${ic('calendar')} ইভেন্ট</button>
+      <button class="menu-item" onclick="go('market')">${ic('bag')} আড্ডা বাজার</button>
+      <button class="menu-item" onclick="go('service')">${ic('hand')} সেবা বোর্ড (রক্ত · হারানো · চাকরি)</button>
+      <button class="menu-item" onclick="go('gov')">${ic('landmark')} সরকারি সেবা ও কর্নার</button>
+      ${localStorage.getItem('adda-kid') === '1' ? '' : `<button class="menu-item" onclick="go('dating')">${ic('heart')} মনের মানুষ</button>`}
     </div>
     <div class="seclabel">নিরাপত্তা ও প্রাইভেসি</div>
     <div class="card" style="padding:6px 15px">
-      <button class="menu-item" onclick="changePasswordSheet()">🔑 পাসওয়ার্ড বদলাও</button>
-      <button class="menu-item" onclick="defAudSheet()">🎯 নতুন পোস্ট কে দেখবে (ডিফল্ট) <span style="margin-left:auto" class="pill">${{ public: 'সবাই', friends: 'বন্ধুরা', close: 'কাছের বন্ধুরা', supporters: 'ফলোয়াররা' }[localStorage.getItem('adda-def-aud') || 'public']}</span></button>
-      <button class="menu-item" onclick="renderBlocks()">🚫 ব্লক করা মানুষ</button>
-      <button class="menu-item" onclick="aboutSheet()">ℹ️ আড্ডাBook সম্পর্কে</button>
-      <button class="menu-item" onclick="logoutEverywhere()">📵 সব ডিভাইস থেকে লগ আউট</button>
+      <button class="menu-item" onclick="changePasswordSheet()">${ic('key')} পাসওয়ার্ড বদলাও</button>
+      <button class="menu-item" onclick="defAudSheet()">${ic('target')} নতুন পোস্ট কে দেখবে (ডিফল্ট) <span style="margin-left:auto" class="pill">${{ public: 'সবাই', friends: 'বন্ধুরা', close: 'কাছের বন্ধুরা', supporters: 'ফলোয়াররা' }[localStorage.getItem('adda-def-aud') || 'public']}</span></button>
+      <button class="menu-item" onclick="renderBlocks()">${ic('ban')} ব্লক করা মানুষ</button>
+      <button class="menu-item" onclick="aboutSheet()">${ic('info')} আড্ডাBook সম্পর্কে</button>
+      <button class="menu-item" onclick="logoutEverywhere()">${ic('power')} সব ডিভাইস থেকে লগ আউট</button>
     </div>
     <div class="seclabel">সুবিধা ও নিরাপত্তা</div>
     <div class="card" style="padding:6px 15px">
-      <button class="menu-item" onclick="toggleTheme();toast('থিম বদলানো হয়েছে')">🌙 ডার্ক / লাইট থিম</button>
-      ${tg('adda-big', '🔠 সহজ মোড (বড় লেখা)')}
-      ${tg('adda-saver', '📶 ডেটা সেভার মোড (ছবি চাপ দিলে লোড)')}
-      ${tg('adda-kid', '🧒 কিড মোড (ডেটিং লুকানো)')}
-      <button class="menu-item" onclick="toggleLang()">🌐 ${LANG === 'en' ? 'Language: English' : 'ভাষা: বাংলা'}</button>
-      <button class="menu-item" style="color:var(--danger)" onclick="doLogout()">🚪 লগ আউট</button>
+      <button class="menu-item" onclick="toggleTheme();toast('থিম বদলানো হয়েছে')">${ic('moon')} ডার্ক / লাইট থিম</button>
+      ${tg('adda-big', 'type', 'সহজ মোড (বড় লেখা)')}
+      ${tg('adda-saver', 'wifi', 'ডেটা সেভার মোড (ছবি চাপ দিলে লোড)')}
+      ${tg('adda-kid', 'shield', 'কিড মোড (ডেটিং লুকানো)')}
+      <button class="menu-item" onclick="toggleLang()">${ic('globe')} ${LANG === 'en' ? 'Language: English' : 'ভাষা: বাংলা'}</button>
+      <button class="menu-item" style="color:var(--danger)" onclick="doLogout()">${ic('logout')} লগ আউট</button>
     </div>
     <p style="text-align:center;color:var(--faint);font-size:11.5px;padding:16px 0 4px">আড্ডাBook · LIMON Labs</p></div>`;
 }
 function changePasswordSheet(){
-  sheet(`<h3>🔑 পাসওয়ার্ড বদলাও</h3>
+  sheet(`<h3>${ic('key', 18)} পাসওয়ার্ড বদলাও</h3>
     <input class="field" type="password" id="npPass" placeholder="নতুন পাসওয়ার্ড (কমপক্ষে ৬ অক্ষর)">
     <input class="field" type="password" id="npPass2" placeholder="আবার লেখো">
     <button class="btn block" onclick="doChangePassword()">বদলে ফেলো</button>`);
@@ -2051,9 +2163,9 @@ async function logoutEverywhere(){
 }
 function defAudSheet(){
   const cur = localStorage.getItem('adda-def-aud') || 'public';
-  const opts = [['public', '🌍 সবাই'], ['friends', '👥 শুধু বন্ধুরা'], ['close', '💚 কাছের বন্ধুরা'], ['supporters', '⭐ ফলোয়াররা']];
-  sheet(`<h3>🎯 নতুন পোস্ট কে দেখবে?</h3><p style="font-size:13px;color:var(--mut);margin-bottom:10px">পোস্ট করার সময় এই অপশনটা আগেই বেছে থাকবে — চাইলে পোস্টের সময় বদলাতেও পারবে।</p>` +
-    opts.map(([v, t]) => `<button class="menu-item" onclick="setDefAud('${v}')">${t}${cur === v ? ' <span style="margin-left:auto">✓</span>' : ''}</button>`).join(''));
+  const opts = [['public', 'globe', 'সবাই'], ['friends', 'users', 'শুধু বন্ধুরা'], ['close', 'heart', 'কাছের বন্ধুরা'], ['supporters', 'star', 'ফলোয়াররা']];
+  sheet(`<h3>${ic('target', 18)} নতুন পোস্ট কে দেখবে?</h3><p style="font-size:13px;color:var(--mut);margin-bottom:10px">পোস্ট করার সময় এই অপশনটা আগেই বেছে থাকবে — চাইলে পোস্টের সময় বদলাতেও পারবে।</p>` +
+    opts.map(([v, icn, t]) => `<button class="menu-item" onclick="setDefAud('${v}')">${ic(icn)} ${t}${cur === v ? ' <span style="margin-left:auto">✓</span>' : ''}</button>`).join(''));
 }
 function setDefAud(v){
   localStorage.setItem('adda-def-aud', v);
@@ -2061,7 +2173,7 @@ function setDefAud(v){
 }
 async function renderBlocks(){
   curView = 'blocks'; renderShell();
-  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">🚫 ব্লক করা মানুষ</div><div class="card" id="blockList" style="padding:6px 15px"><div class="empty">লোড হচ্ছে...</div></div></div>`;
+  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">${ic('ban', 19)} ব্লক করা মানুষ</div><div class="card" id="blockList" style="padding:6px 15px"><div class="empty">লোড হচ্ছে...</div></div></div>`;
   const { data } = await sb.from('blocks').select('*').eq('blocker', me.id);
   await cacheProfiles((data || []).map(b => b.blocked));
   const el = document.getElementById('blockList');
@@ -2073,7 +2185,7 @@ async function unblockUser(uid){
   toast('আনব্লক করা হয়েছে'); renderBlocks();
 }
 function aboutSheet(){
-  sheet(`<h3>ℹ️ আড্ডাBook সম্পর্কে</h3>
+  sheet(`<h3>${ic('info', 18)} আড্ডাBook সম্পর্কে</h3>
     <p style="font-size:14px;line-height:1.75">আড্ডাBook — বন্ধুদের সাথে প্রতিদিনের আড্ডার নিজের জায়গা। বানিয়েছে <b>LIMON Labs</b>।<br><br>
     🛡 <b>নিরাপত্তা টিপস:</b> পাসওয়ার্ড কারো সাথে শেয়ার করো না। কেনাবেচায় অগ্রিম টাকা পাঠানোর আগে যাচাই করো। সন্দেহজনক পোস্টে রিপোর্ট করো।<br><br>
     📌 সংস্করণ: v2 (২০২৬)</p>`);
@@ -2094,15 +2206,15 @@ async function renderTokens(){
     <small>প্রতিদিন লগইন, পোস্ট আর মন্তব্য করে টোকেন আয় করো</small><br><small>🔥 লগইন স্ট্রিক: ${bn(me.login_streak || 0)} দিন</small></div>
     <div class="seclabel">টোকেন আয় করো</div>
     <div class="card" style="padding:6px 15px">
-      <div class="earn"><span class="eic">📅</span><div><b>প্রতিদিন লগইন</b><small>প্রতিদিন একবার</small></div><span class="plus">+১০</span></div>
-      <div class="earn"><span class="eic">📝</span><div><b>পোস্ট করো</b><small>দিনে সর্বোচ্চ ৫টি পোস্টে</small></div><span class="plus">+১৫</span></div>
-      <div class="earn"><span class="eic">💬</span><div><b>মন্তব্য করো</b><small>দিনে সর্বোচ্চ ১০টি</small></div><span class="plus">+৩</span></div>
-      <div class="earn"><span class="eic">🎉</span><div><b>স্বাগত বোনাস</b><small>নতুন অ্যাকাউন্টে একবার</small></div><span class="plus">+১০০</span></div>
+      <div class="earn"><span class="eic">${ic('calendar', 20)}</span><div><b>প্রতিদিন লগইন</b><small>প্রতিদিন একবার</small></div><span class="plus">+১০</span></div>
+      <div class="earn"><span class="eic">${ic('edit', 20)}</span><div><b>পোস্ট করো</b><small>দিনে সর্বোচ্চ ৫টি পোস্টে</small></div><span class="plus">+১৫</span></div>
+      <div class="earn"><span class="eic">${ic('comment', 20)}</span><div><b>মন্তব্য করো</b><small>দিনে সর্বোচ্চ ১০টি</small></div><span class="plus">+৩</span></div>
+      <div class="earn"><span class="eic">${ic('sparkles', 20)}</span><div><b>স্বাগত বোনাস</b><small>নতুন অ্যাকাউন্টে একবার</small></div><span class="plus">+১০০</span></div>
     </div>
     <div class="seclabel">টোকেন খরচ করো</div>
     <div class="card" style="padding:6px 15px">
-      <div class="earn"><span class="eic">🚀</span><div><b>পোস্ট বুস্ট</b><small>নিজের পোস্টের ⋯ মেনু থেকে, ২৪ ঘণ্টা সবার উপরে</small></div><span class="minus">৫০</span></div>
-      <div class="earn"><span class="eic">🎁</span><div><b>বন্ধুকে উপহার</b><small>বন্ধুর প্রোফাইল থেকে পাঠাও</small></div><span class="minus">১০০</span></div>
+      <div class="earn"><span class="eic">${ic('rocket', 20)}</span><div><b>পোস্ট বুস্ট</b><small>নিজের পোস্টের ⋯ মেনু থেকে, ২৪ ঘণ্টা সবার উপরে</small></div><span class="minus">৫০</span></div>
+      <div class="earn"><span class="eic">${ic('gift', 20)}</span><div><b>বন্ধুকে উপহার</b><small>বন্ধুর প্রোফাইল থেকে পাঠাও</small></div><span class="minus">১০০</span></div>
       <div class="earn"><span class="eic">◆</span><div><b>প্রিমিয়াম ব্যাজ</b><small>নামের পাশে সোনালি ব্যাজ ${me.badge ? '— তোমার আছে ✓' : ''}</small></div>${me.badge ? '' : `<button class="btn sm" onclick="buyBadge()">২০০ দিয়ে কেনো</button>`}</div>
     </div>
     <div class="seclabel">ইতিহাস</div>
@@ -2126,7 +2238,7 @@ async function renderDating(){
   if (!dp || !dp.active) {
     view().innerHTML = `<div class="view">
       <div class="card" style="text-align:center;padding:24px 18px">
-        <div style="font-size:40px">💘</div>
+        <div style="color:#DB2777">${ic('heartF', 44)}</div>
         <div style="font-size:19px;font-weight:800;margin:6px 0">মনের মানুষ</div>
         <p style="color:var(--mut);font-size:13.5px;line-height:1.7">আলাদা একটা জায়গা, যেখানে মনের মিল খুঁজে পাবে।<br>শুধু ১৮+ দের জন্য · সম্পূর্ণ ঐচ্ছিক · ম্যাচ হলেই চ্যাট</p>
       </div>
@@ -2144,7 +2256,7 @@ async function renderDating(){
   }
   window._myDating = dp;
   view().innerHTML = `<div class="view">
-    <div style="padding:14px 16px 0;display:flex;align-items:center"><span style="font-size:18px;font-weight:800">মনের মানুষ 💘</span>
+    <div style="padding:14px 16px 0;display:flex;align-items:center"><span style="font-size:18px;font-weight:800">${ic('heartF', 18)} মনের মানুষ</span>
     <button class="btn ghost sm" style="margin-left:auto" onclick="datingSettings()">আমার প্রোফাইল</button></div>
     <div id="deckBox"><div class="empty">লোড হচ্ছে...</div></div>
     <div class="seclabel">তোমার ম্যাচ</div><div class="card" id="matchList" style="padding:6px 15px"><div class="empty">লোড হচ্ছে...</div></div>
@@ -2168,7 +2280,7 @@ async function renderDating(){
   const onMe = new Set((likesOnMe || []).map(r => r.liker));
   const matches = [...likedSet].filter(id => onMe.has(id));
   await cacheProfiles(matches);
-  $('#matchList').innerHTML = matches.length ? matches.map(id => { const p = prof(id); return userRow(p, `<button class="btn sm" onclick="startChat('${id}')">মেসেজ 💘</button>`); }).join('') : '<div class="empty">এখনো ম্যাচ হয়নি — পছন্দের প্রোফাইলে ❤ দাও</div>';
+  $('#matchList').innerHTML = matches.length ? matches.map(id => { const p = prof(id); return userRow(p, `<button class="btn sm" onclick="startChat('${id}')">মেসেজ ${ic('heartF', 13)}</button>`); }).join('') : '<div class="empty">এখনো ম্যাচ হয়নি — পছন্দের প্রোফাইলে ❤ দাও</div>';
 }
 function showCard(){
   const box = $('#deckBox'); if (!box) return;
@@ -2184,9 +2296,9 @@ function showCard(){
     <div class="chiprow2">${(d.interests || []).map(i => `<span class="ichip">${esc(i)}</span>`).join('')}</div>
     ${d.bio ? `<p class="dbio">${esc(d.bio)}</p>` : ''}
     <div class="dacts">
-      <button class="dbtn" onclick="passCard()" aria-label="পাস">✕</button>
-      <button class="dbtn super" onclick="likeCard(true)" aria-label="সুপার লাইক">★</button>
-      <button class="dbtn like" onclick="likeCard(false)" aria-label="লাইক">❤</button>
+      <button class="dbtn" onclick="passCard()" aria-label="পাস">${ic('x', 24)}</button>
+      <button class="dbtn super" onclick="likeCard(true)" aria-label="সুপার লাইক">${ic('starF', 22)}</button>
+      <button class="dbtn like" onclick="likeCard(false)" aria-label="লাইক">${ic('heartF', 26)}</button>
     </div>
     <div style="text-align:center;padding-bottom:12px"><a href="#" onclick="datingCardMenu('${d.user_id}');return false" style="font-size:12.5px;color:var(--faint)">রিপোর্ট / ব্লক</a></div></div>`;
 }
@@ -2207,8 +2319,8 @@ async function likeCard(isSuper){
 }
 function datingCardMenu(uid){
   sheet(`<h3>নিরাপত্তা</h3>
-    <button class="menu-item" onclick="reportItem('dating','${uid}')">🚩 এই প্রোফাইল রিপোর্ট করো</button>
-    <button class="menu-item" style="color:var(--danger)" onclick="blockUser('${uid}')">🚫 ব্লক করো</button>
+    <button class="menu-item" onclick="reportItem('dating','${uid}')">${ic('flag')} এই প্রোফাইল রিপোর্ট করো</button>
+    <button class="menu-item" style="color:var(--danger)" onclick="blockUser('${uid}')">${ic('ban')} ব্লক করো</button>
     <button class="menu-item" onclick="closeSheet()">বন্ধ করো</button>`);
 }
 async function saveDatingProfile(){
