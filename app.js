@@ -243,7 +243,7 @@ const I18N = {
   'দিনে সর্বোচ্চ ১০টি': 'Up to 10 a day', 'স্বাগত বোনাস': 'Welcome bonus', 'নতুন অ্যাকাউন্টে একবার': 'Once, for new accounts',
   'পোস্ট বুস্ট': 'Post boost', 'নিজের পোস্টের ⋯ মেনু থেকে, ২৪ ঘণ্টা সবার উপরে': "From your post's ⋯ menu — stays on top for 24 hours",
   'বন্ধুকে উপহার': 'Gift a friend', 'বন্ধুর প্রোফাইল থেকে পাঠাও': "Send it from your friend's profile",
-  'প্রিমিয়াম ব্যাজ': 'Premium badge', 'অ্যাডমিন ড্যাশবোর্ড': 'Admin dashboard', 'মোট ব্যবহারকারী': 'Total users', 'মোট পোস্ট': 'Total posts', 'রিপোর্টসমূহ': 'Reports', 'ব্যবহারকারী': 'Users', 'পোস্টটি দেখো': 'View post', 'পোস্ট মুছো': 'Delete post', 'রিপোর্ট বাতিল': 'Dismiss', 'কোনো রিপোর্ট নেই': 'No reports', 'ভেরিফাই করো': 'Verify', 'ভেরিফাইড': 'Verified', 'ব্যাজ দাও': 'Give badge', 'ব্যাজ সরাও': 'Remove badge', 'প্রোফাইল দেখো': 'View profile', 'নামের পাশে সোনালি ব্যাজ': 'A golden badge next to your name',
+  'প্রিমিয়াম ব্যাজ': 'Premium badge', 'অ্যাডমিন ড্যাশবোর্ড': 'Admin dashboard', 'মোট ব্যবহারকারী': 'Total users', 'মোট পোস্ট': 'Total posts', 'রিপোর্টসমূহ': 'Reports', 'ব্যবহারকারী': 'Users', 'পোস্টটি দেখো': 'View post', 'পোস্ট মুছো': 'Delete post', 'রিপোর্ট বাতিল': 'Dismiss', 'কোনো রিপোর্ট নেই': 'No reports', 'ভেরিফাই করো': 'Verify', 'ভেরিফাইড': 'Verified', 'ব্যাজ দাও': 'Give badge', 'ব্যাজ সরাও': 'Remove badge', 'প্রোফাইল দেখো': 'View profile', 'কয়েন': 'Tokens', 'কয়েন ঠিক করো': 'Adjust tokens', 'যোগ করো': 'Add', 'কমাও': 'Subtract', 'নামের পাশে সোনালি ব্যাজ': 'A golden badge next to your name',
   '২০০ দিয়ে কেনো': 'Buy for 200', 'ইতিহাস': 'History', 'এখনো কোনো লেনদেন নেই': 'No transactions yet',
   'টোকেন যথেষ্ট নেই': 'Not enough tokens', 'টোকেন যথেষ্ট নেই (লাগবে ১০০)': 'Not enough tokens (needs 100)',
   'টোকেন যথেষ্ট নেই (লাগবে ২০০)': 'Not enough tokens (needs 200)', 'অভিনন্দন! প্রিমিয়াম ব্যাজ পেয়ে গেছ 👑': 'Congratulations! You got the premium badge',
@@ -2111,7 +2111,7 @@ async function renderAdmin(){
         <button class="btn ghost sm" onclick="adminDismiss('${x.id}')">রিপোর্ট বাতিল</button>
       </div></div>`; }).join('') : '<div class="empty">কোনো রিপোর্ট নেই</div>'}</div>
     <div class="seclabel">ব্যবহারকারী</div>
-    <div class="card" style="padding:6px 15px">${(users || []).map(x => userRow(x, `<span style="display:flex;gap:6px"><button class="btn ${x.verified ? '' : 'ghost'} sm" onclick="adminToggle('${x.id}','verified',${!!x.verified})">${x.verified ? 'ভেরিফাইড' : 'ভেরিফাই করো'}</button><button class="btn ${x.badge ? '' : 'ghost'} sm" onclick="adminToggle('${x.id}','badge',${!!x.badge})">${x.badge ? 'ব্যাজ সরাও' : 'ব্যাজ দাও'}</button></span>`)).join('')}</div>
+    <div class="card" style="padding:6px 15px">${(users || []).map(x => userRow(x, `<span style="display:flex;gap:6px;align-items:center"><span style="display:inline-flex;align-items:center;gap:3px;font-size:12.5px;color:var(--mut)">${ic('wallet', 13)}<b style="color:var(--ink)">${bn(x.tokens || 0)}</b></span><button class="btn ghost sm" onclick="adminTokens('${x.id}')">কয়েন</button><button class="btn ${x.verified ? '' : 'ghost'} sm" onclick="adminToggle('${x.id}','verified',${!!x.verified})">${x.verified ? 'ভেরিফাইড' : 'ভেরিফাই করো'}</button><button class="btn ${x.badge ? '' : 'ghost'} sm" onclick="adminToggle('${x.id}','badge',${!!x.badge})">${x.badge ? 'ব্যাজ সরাও' : 'ব্যাজ দাও'}</button></span>`)).join('')}</div>
   </div>`;
 }
 async function adminToggle(uid, field, cur){
@@ -2119,6 +2119,32 @@ async function adminToggle(uid, field, cur){
   if (error) { toast('করা যায়নি'); return; }
   if (profilesCache[uid]) profilesCache[uid][field] = !cur;
   toast('হয়ে গেছে ✓'); renderAdmin();
+}
+function adminTokens(uid){
+  const u = profilesCache[uid]; if (!u) return;
+  openSheet(`<h3 style="display:flex;align-items:center;gap:7px">${ic('wallet', 18)} কয়েন ঠিক করো</h3>
+    <p style="font-size:13.5px;color:var(--mut)">${esc(u.name)}-এর এখনকার ব্যালান্স: <b style="color:var(--ink)">${bn(u.tokens || 0)} কয়েন</b></p>
+    <input class="field" id="admTokAmt" type="number" min="1" placeholder="কত কয়েন? (যেমন: ৫০)">
+    <div style="display:flex;gap:8px">
+      <button class="btn" style="flex:1" onclick="adminAdjustTokens('${uid}',1)">যোগ করো</button>
+      <button class="btn" style="flex:1;background:var(--danger)" onclick="adminAdjustTokens('${uid}',-1)">কমাও</button>
+    </div>`);
+}
+async function adminAdjustTokens(uid, dir){
+  const amt = Math.floor(Math.abs(Number(($('#admTokAmt') || {}).value || 0)));
+  if (!amt) { toast('আগে পরিমাণ লেখো'); return; }
+  const { data: cur, error: e1 } = await sb.from('profiles').select('tokens').eq('id', uid).single();
+  if (e1 || !cur) { toast('করা যায়নি'); return; }
+  const delta = dir * amt;
+  const next = Math.max(0, (cur.tokens || 0) + delta);
+  const realDelta = next - (cur.tokens || 0);
+  if (realDelta === 0) { toast('ব্যালান্স ০-এর নিচে নামবে না'); return; }
+  const { error } = await sb.from('profiles').update({ tokens: next }).eq('id', uid);
+  if (error) { toast('করা যায়নি'); return; }
+  await sb.from('token_txns').insert({ user_id: uid, amount: realDelta, reason: 'admin' });
+  if (profilesCache[uid]) profilesCache[uid].tokens = next;
+  if (uid === me.id) me.tokens = next;
+  closeSheet(); toast('হয়ে গেছে ✓ নতুন ব্যালান্স: ' + bn(next)); renderAdmin();
 }
 async function adminDeletePost(repId, postId){
   const { error } = await sb.from('posts').delete().eq('id', postId);
@@ -2243,7 +2269,7 @@ function toggleLang(){
 }
 
 /* ---------- TOKENS ---------- */
-const REASONS = { welcome: 'স্বাগত বোনাস 🎉', login: 'দৈনিক লগইন বোনাস', post: 'পোস্ট করার পুরস্কার', comment: 'মন্তব্যের পুরস্কার', invite: 'বন্ধু আমন্ত্রণের পুরস্কার', quiz: 'কুইজ পুরস্কার', boost: 'পোস্ট বুস্ট', gift: 'উপহার পাঠিয়েছ', gift_received: 'উপহার পেয়েছ 🎁', badge: 'প্রিমিয়াম ব্যাজ', fund: 'গ্রুপ তহবিলে জমা', theme: 'প্রোফাইল থিম' };
+const REASONS = { welcome: 'স্বাগত বোনাস 🎉', login: 'দৈনিক লগইন বোনাস', post: 'পোস্ট করার পুরস্কার', comment: 'মন্তব্যের পুরস্কার', invite: 'বন্ধু আমন্ত্রণের পুরস্কার', quiz: 'কুইজ পুরস্কার', boost: 'পোস্ট বুস্ট', gift: 'উপহার পাঠিয়েছ', gift_received: 'উপহার পেয়েছ 🎁', badge: 'প্রিমিয়াম ব্যাজ', fund: 'গ্রুপ তহবিলে জমা', theme: 'প্রোফাইল থিম', admin: 'অ্যাডমিন দিয়েছে / ঠিক করেছে' };
 async function renderTokens(){
   curView = 'tokens'; renderShell();
   const { data: fresh } = await sb.from('profiles').select('*').eq('id', me.id).single();
