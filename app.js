@@ -1,0 +1,1752 @@
+/* AddaBook — single-file app (Supabase backend) */
+const SUPABASE_URL = 'https://eowrjgdvdntnpgyamuxl.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVvd3JqZ2R2ZG50bnBneWFtdXhsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTU2MjkzMjQsImV4cCI6MjExMTIwNTMyNH0.Zl_dnGYGtJneH8x8cHbnY7TIX40QKYyS6XIAJK_CuDI';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+let me = null;            // my profile row
+let curView = 'feed';
+let profilesCache = {};   // id -> profile
+let pagesCache = {};      // id -> page
+let friendIds = new Set();
+let followIds = new Set();
+let blockedIds = new Set();
+let closeOfIds = new Set();   // authors who added ME as close friend
+let myCloseIds = new Set();   // people I added as close friends
+let unreadNotifs = 0;
+let activeChat = null;    // conversation id open
+let chatChannel = null;
+let notifChannel = null;
+
+const $ = s => document.querySelector(s);
+const view = () => $('#view');
+const BN = '০১২৩৪৫৬৭৮৯';
+const bn = n => String(n).replace(/[0-9]/g, d => BN[d]);
+function esc(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+const COLORS = ['#4F46E5','#2563EB','#DB2777','#059669','#D97706','#7C3AED','#0891B2','#DC2626'];
+function colorFor(id){ let h = 0; for (const c of String(id)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return COLORS[h % COLORS.length]; }
+function avatar(p, size = 38, fs = 15){
+  if (p && p.avatar_url) return `<img class="avimg" src="${esc(p.avatar_url)}" style="width:${size}px;height:${size}px" alt="">`;
+  const name = (p && p.name) || '?';
+  return `<span class="av" style="background:${colorFor(p ? p.id : name)};width:${size}px;height:${size}px;font-size:${fs}px">${esc(name.trim()[0] || '?')}</span>`;
+}
+function badges(p){ return (p && p.verified ? '<span class="vf">✓</span>' : '') + (p && p.badge ? '<span class="gold">◆</span>' : ''); }
+function timeAgo(ts){
+  const s = (Date.now() - new Date(ts).getTime()) / 1000;
+  if (s < 60) return 'এখনই';
+  if (s < 3600) return bn(Math.floor(s / 60)) + ' মিনিট আগে';
+  if (s < 86400) return bn(Math.floor(s / 3600)) + ' ঘণ্টা আগে';
+  if (s < 86400 * 30) return bn(Math.floor(s / 86400)) + ' দিন আগে';
+  return new Date(ts).toLocaleDateString('bn-BD');
+}
+function toast(msg){
+  const old = document.querySelector('.toast'); if (old) old.remove();
+  const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg;
+  document.body.appendChild(t); setTimeout(() => t.remove(), 2600);
+}
+function sheet(html){
+  $('#overlay').innerHTML = `<div class="sheet" onclick="if(event.target===this)closeSheet()"><div class="sheetbox">${html}</div></div>`;
+}
+function closeSheet(){ $('#overlay').innerHTML = ''; }
+function linkTags(text){
+  return esc(text).replace(/#([\p{L}\p{N}_]+)/gu, '<a class="tag" href="#" onclick="openTag(\'$1\');return false">#$1</a>');
+}
+async function notify(userId, type, postId = null, convId = null){
+  if (!me || userId === me.id) return;
+  await sb.from('notifications').insert({ user_id: userId, actor_id: me.id, type, post_id: postId, conversation_id: convId });
+}
+async function cacheProfiles(ids){
+  const missing = [...new Set(ids)].filter(id => id && !profilesCache[id]);
+  if (!missing.length) return;
+  const { data } = await sb.from('profiles').select('*').in('id', missing);
+  (data || []).forEach(p => profilesCache[p.id] = p);
+}
+function prof(id){ return profilesCache[id] || { id, name: 'ব্যবহারকারী', avatar_url: '' }; }
+
+/* ---------- ICONS ---------- */
+const I = {
+  search:'<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>',
+  bell:'<svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8"/><path d="M10.3 21a2 2 0 0 0 3.4 0"/></svg>',
+  msg:'<svg viewBox="0 0 24 24"><path d="M21 11.5a8.5 8.5 0 0 1-12.4 7.6L3 21l1.9-5.6A8.5 8.5 0 1 1 21 11.5z"/></svg>',
+  home:'<svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>',
+  users:'<svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.2 3.4-5 6.5-5s5.7 1.8 6.5 5"/><path d="M16 5a3.5 3.5 0 0 1 0 6.5M18.5 15.4c1.7.7 2.7 2.1 3.1 4.1"/></svg>',
+  fire:'<svg viewBox="0 0 24 24"><path d="M12 3c1 3-2 4.5-2 7a4.5 4.5 0 0 0 9 0c0-2-1-3.5-2-5-.3 1.2-1 2-2 2.5C14.5 6 13.5 4.5 12 3z"/><path d="M12 21a6.5 6.5 0 0 1-6.5-6.5c0-1.5.5-2.8 1.3-4 .5 1 1.2 1.7 2.2 2.2C8.7 14 9 15.5 10 16.5c-.3-2.3.8-3.7 2-5.5 1.2 1.8 3.5 3.3 3.5 6A6.5 6.5 0 0 1 12 21z" transform="scale(0.92) translate(1,0)"/></svg>',
+  user:'<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4.2-6 8-6s7 2 8 6"/></svg>',
+  heart:'<svg viewBox="0 0 24 24"><path d="M12 20.5C7 16.5 3 13.3 3 9.3A4.8 4.8 0 0 1 12 6a4.8 4.8 0 0 1 9 3.3c0 4-4 7.2-9 11.2z"/></svg>',
+  comment:'<svg viewBox="0 0 24 24"><path d="M21 11.5a8.5 8.5 0 0 1-12.4 7.6L3 21l1.9-5.6A8.5 8.5 0 1 1 21 11.5z"/></svg>',
+  share:'<svg viewBox="0 0 24 24"><path d="M13 5.5 20 12l-7 6.5v-4C7 14.5 4.5 17 3 19c0-6 3.5-10 10-11z"/></svg>',
+  bookmark:'<svg viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4-6 4z"/></svg>',
+  dots:'<svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>',
+  img:'<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><circle cx="9" cy="10" r="1.6"/><path d="M4 18l5-5 3 3 3-3 5 5"/></svg>',
+  send:'➤'
+};
+
+/* ---------- SHELL ---------- */
+function renderShell(){
+  $('#topbar').innerHTML = `<div class="top">
+    <div class="logo">আড্ডা<em>Book</em></div>
+    <div class="ic">
+      <button class="icb" onclick="go('search')" aria-label="খোঁজো">${I.search}</button>
+      <button class="icb" onclick="go('notifs')" aria-label="নোটিফিকেশন">${I.bell}${unreadNotifs ? `<span class="dotn">${bn(unreadNotifs)}</span>` : ''}</button>
+      <button class="icb" onclick="go('chat')" aria-label="চ্যাট">${I.msg}</button>
+    </div></div>`;
+  const EN = localStorage.getItem('adda-lang') === 'en';
+  const items = EN ? [['feed','Home',I.home],['friends','Friends',I.users],['trending','Explore',I.fire],['chat','Chat',I.msg],['profile','Profile',I.user]]
+                   : [['feed','হোম',I.home],['friends','বন্ধু',I.users],['trending','আবিষ্কার',I.fire],['chat','চ্যাট',I.msg],['profile','প্রোফাইল',I.user]];
+  $('#navbar').innerHTML = `<div class="nav">${items.map(([k,t,ic]) => `<button class="${curView === k ? 'on' : ''}" onclick="go('${k}')">${ic}${t}</button>`).join('')}</div>`;
+}
+function go(v, arg){
+  curView = v; activeChat = null;
+  if (chatChannel) { sb.removeChannel(chatChannel); chatChannel = null; }
+  renderShell();
+  window.scrollTo(0, 0);
+  ({ feed: renderFeed, friends: renderFriends, trending: renderTrending, chat: renderChatList,
+     profile: () => renderProfile(me.id), notifs: renderNotifs, search: renderSearch,
+     tokens: renderTokens, dating: renderDating, groups: renderGroups, saved: renderSaved, settings: renderSettings,
+     quiz: renderQuiz, leaderboard: renderLeaderboard, achieve: renderAchievements, creator: renderCreator,
+     albums: renderAlbums, pages: renderPages, events: renderEvents, service: renderService, market: renderMarket,
+     gov: renderGov, habits: renderHabits, pets: renderPets, anon: renderAnon, closefriends: renderCloseFriends,
+     archived: renderArchived, themes: renderThemes, videos: renderVideos, viewers: renderViewers }[v] || renderFeed)(arg);
+}
+
+/* ---------- AUTH ---------- */
+function renderAuth(mode = 'login'){
+  $('#topbar').innerHTML = ''; $('#navbar').innerHTML = '';
+  view().innerHTML = `<div class="view">
+    <div class="hero"><div class="mark">অ</div>
+      <div style="font-size:25px;font-weight:800;position:relative;z-index:1">আড্ডাBook</div>
+      <p style="font-size:13.5px;opacity:.88;margin-top:5px;position:relative;z-index:1">বন্ধুদের সাথে প্রতিদিনের আড্ডা, এক জায়গায়</p></div>
+    <div class="loginbox">
+      ${mode === 'signup' ? '<input class="field" id="authName" placeholder="তোমার নাম">' : ''}
+      <input class="field" id="authEmail" type="email" placeholder="ইমেইল">
+      <input class="field" id="authPass" type="password" placeholder="পাসওয়ার্ড (কমপক্ষে ৬ অক্ষর)">
+      <div id="authErr" style="color:var(--danger);font-size:13px;margin-bottom:10px"></div>
+      ${mode === 'login'
+        ? `<button class="btn block" onclick="doLogin()">লগ ইন</button>
+           <p style="text-align:center;margin-top:15px;font-size:13.5px;color:var(--mut)">অ্যাকাউন্ট নেই? <a href="#" onclick="renderAuth('signup');return false"><b>নতুন অ্যাকাউন্ট খোলো</b></a></p>`
+        : `<button class="btn block" onclick="doSignup()">অ্যাকাউন্ট খোলো</button>
+           <p style="text-align:center;margin-top:15px;font-size:13.5px;color:var(--mut)">আগে থেকেই অ্যাকাউন্ট আছে? <a href="#" onclick="renderAuth('login');return false"><b>লগ ইন করো</b></a></p>`}
+    </div>
+    <p style="text-align:center;color:var(--faint);font-size:11.5px;padding:18px 0 6px">© 2026 আড্ডাBook · LIMON Labs</p></div>`;
+}
+async function doSignup(){
+  const name = $('#authName').value.trim(), email = $('#authEmail').value.trim(), pass = $('#authPass').value;
+  const err = $('#authErr');
+  if (!name || !email || pass.length < 6) { err.textContent = 'নাম, ইমেইল আর কমপক্ষে ৬ অক্ষরের পাসওয়ার্ড দাও'; return; }
+  const { data, error } = await sb.auth.signUp({ email, password: pass, options: { data: { name } } });
+  if (error) { err.textContent = 'হয়নি: ' + error.message; return; }
+  if (!data.session) { err.style.color = 'var(--ok)'; err.textContent = 'অ্যাকাউন্ট তৈরি! ইমেইলে পাঠানো লিংকে চাপ দিয়ে নিশ্চিত করে তারপর লগ ইন করো।'; return; }
+  await boot();
+}
+async function doLogin(){
+  const email = $('#authEmail').value.trim(), pass = $('#authPass').value;
+  const err = $('#authErr');
+  const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+  if (error) { err.textContent = 'লগ ইন হয়নি — ইমেইল/পাসওয়ার্ড মিলিয়ে আবার চেষ্টা করো'; return; }
+  await boot();
+}
+async function doLogout(){ await sb.auth.signOut(); me = null; renderAuth(); }
+
+/* ---------- V2: HELPERS ---------- */
+let breakTimer = null;
+function startBreakReminder(){
+  if (breakTimer) clearInterval(breakTimer);
+  breakTimer = setInterval(() => { toast('⏰ অনেকক্ষণ ধরে আছো — একটু চোখ আর মনকে বিশ্রাম দাও'); }, 30 * 60 * 1000);
+}
+async function downloadMyData(){
+  toast('তোমার ডেটা তৈরি হচ্ছে...');
+  const [profile, posts, comments, likes, txns] = await Promise.all([
+    sb.from('profiles').select('*').eq('id', me.id).single(),
+    sb.from('posts').select('*').eq('user_id', me.id),
+    sb.from('comments').select('*').eq('user_id', me.id),
+    sb.from('likes').select('*').eq('user_id', me.id),
+    sb.from('token_txns').select('*').eq('user_id', me.id)
+  ]);
+  const blob = new Blob([JSON.stringify({ exported_at: new Date().toISOString(), profile: profile.data, posts: posts.data, comments: comments.data, likes: likes.data, token_history: txns.data }, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'addabook-my-data.json'; a.click();
+  toast('ডেটা ডাউনলোড হয়েছে 📥');
+}
+async function renderArchived(){
+  curView = 'archived'; renderShell();
+  view().innerHTML = `<div class="view"><div style="padding:14px 16px;font-size:18px;font-weight:800">🗄 আর্কাইভ করা পোস্ট</div><div id="archList"><div class="empty">লোড হচ্ছে...</div></div></div>`;
+  const posts = await fetchPosts({ authorId: me.id, archivedOnly: true });
+  const el = document.getElementById('archList');
+  if (el) el.innerHTML = posts.length ? posts.map(postCard).join('') : '<div class="card empty">আর্কাইভে কিছু নেই</div>';
+}
+async function renderVideos(){
+  curView = 'videos'; renderShell();
+  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">🎬 ভিডিও</div><div id="vidList"><div class="empty">লোড হচ্ছে...</div></div></div>`;
+  const { data } = await sb.from('posts').select('*').not('video_url', 'is', null).neq('video_url', '').order('created_at', { ascending: false }).limit(30);
+  const posts = data && data.length ? await fetchPostsByIds(data) : [];
+  const el = document.getElementById('vidList');
+  if (el) el.innerHTML = posts.length ? posts.map(postCard).join('') : '<div class="card empty">এখনো কোনো ভিডিও পোস্ট নেই — পোস্ট করার সময় ভিডিও যোগ করো</div>';
+}
+
+/* ---------- V2: QUIZ / LEADERBOARD / ACHIEVEMENTS / CREATOR ---------- */
+const QUIZ_BANK = [
+  { q: 'বাংলাদেশের জাতীয় ফল কোনটি?', o: ['আম', 'কাঁঠাল', 'লিচু', 'কলা'], a: 1 },
+  { q: 'ঢাকা কোন নদীর তীরে অবস্থিত?', o: ['পদ্মা', 'যমুনা', 'বুড়িগঙ্গা', 'মেঘনা'], a: 2 },
+  { q: 'বাংলা নববর্ষ কোন তারিখে পালিত হয়?', o: ['১৪ এপ্রিল', '২১ ফেব্রুয়ারি', '১৬ ডিসেম্বর', '২৬ মার্চ'], a: 0 },
+  { q: 'জাতীয় সংগীতের রচয়িতা কে?', o: ['কাজী নজরুল ইসলাম', 'রবীন্দ্রনাথ ঠাকুর', 'জসীমউদ্দীন', 'সুকান্ত ভট্টাচার্য'], a: 1 },
+  { q: 'পৃথিবীর সবচেয়ে বড় মহাসাগর কোনটি?', o: ['আটলান্টিক', 'ভারত', 'প্রশান্ত', 'উত্তর মেরু'], a: 2 },
+  { q: 'মানুষের শরীরে হাড়ের সংখ্যা কত (প্রাপ্তবয়স্ক)?', o: ['২০৬', '২২৬', '১৯৬', '২৫৬'], a: 0 },
+  { q: 'বাংলাদেশের মুদ্রার নাম কী?', o: ['রুপি', 'টাকা', 'দিনার', 'ডলার'], a: 1 },
+  { q: 'সূর্যের সবচেয়ে কাছের গ্রহ কোনটি?', o: ['শুক্র', 'মঙ্গল', 'বুধ', 'পৃথিবী'], a: 2 },
+  { q: 'কম্পিউটারের জনক কাকে বলা হয়?', o: ['বিল গেটস', 'চার্লস ব্যাবেজ', 'অ্যালান টুরিং', 'স্টিভ জবস'], a: 1 },
+  { q: 'বিশ্বের দীর্ঘতম নদী কোনটি?', o: ['আমাজন', 'নীল', 'ইয়াংসিকিয়াং', 'মিসিসিপি'], a: 1 },
+  { q: 'বাংলাদেশের জাতীয় মাছ কোনটি?', o: ['রুই', 'কাতলা', 'ইলিশ', 'পাঙ্গাস'], a: 2 },
+  { q: 'আলো বছরে কত দূরত্ব অতিক্রম করে (আনুমানিক)?', o: ['৯.৫ লক্ষ কোটি কিমি', '১৫ কোটি কিমি', '৩ লক্ষ কিমি', '১০০ কোটি কিমি'], a: 0 }
+];
+async function renderQuiz(){
+  curView = 'quiz'; renderShell();
+  const day = Math.floor(Date.now() / 864e5);
+  const item = QUIZ_BANK[day % QUIZ_BANK.length];
+  const doneKey = 'adda-quiz-' + day;
+  const done = localStorage.getItem(doneKey);
+  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">🧠 আজকের কুইজ</div>
+    <div class="card"><p style="font-size:15.5px;line-height:1.6"><b>${esc(item.q)}</b></p>
+    <div id="quizOpts" style="display:grid;gap:8px;margin-top:12px">${item.o.map((o, i) => `<button class="btn ghost" style="justify-content:flex-start" onclick="answerQuiz(${i},'${doneKey}')">${esc(o)}</button>`).join('')}</div>
+    <p id="quizMsg" style="margin-top:12px;font-size:13.5px;color:var(--mut)">${done ? 'আজকের কুইজ তুমি খেলে ফেলেছ — কাল আবার এসো! সঠিক উত্তরে পাওয়া যায় ৩০ টোকেন।' : 'সঠিক উত্তর দিলে পাবে ৩০ টোকেন 🎉 (দিনে একবার)'}</p></div></div>`;
+}
+async function answerQuiz(idx, doneKey){
+  if (localStorage.getItem(doneKey)) { toast('আজকের কুইজ হয়ে গেছে'); return; }
+  const day = Math.floor(Date.now() / 864e5);
+  const item = QUIZ_BANK[day % QUIZ_BANK.length];
+  localStorage.setItem(doneKey, '1');
+  const msg = document.getElementById('quizMsg');
+  if (idx === item.a) {
+    const { data } = await sb.rpc('rpc_award', { p_reason: 'quiz' });
+    if (typeof data === 'number') me.tokens = data;
+    if (msg) msg.innerHTML = '🎉 <b>সঠিক উত্তর!</b> ৩০ টোকেন যোগ হয়েছে।';
+    toast('সঠিক! +৩০ টোকেন 🎉');
+  } else {
+    if (msg) msg.innerHTML = `দুঃখিত, সঠিক উত্তর ছিল: <b>${esc(item.o[item.a])}</b> — কাল আবার চেষ্টা করো!`;
+  }
+}
+async function renderLeaderboard(){
+  curView = 'leaderboard'; renderShell();
+  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">🏆 লিডারবোর্ড (টোকেন)</div><div class="card" id="lbList" style="padding:6px 15px"><div class="empty">লোড হচ্ছে...</div></div></div>`;
+  const { data } = await sb.from('profiles').select('*').order('tokens', { ascending: false }).limit(20);
+  (data || []).forEach(p => profilesCache[p.id] = p);
+  const el = document.getElementById('lbList');
+  if (el) el.innerHTML = (data || []).map((p, i) => `<div class="row">${'<b style="width:26px;text-align:center">' + (i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : bn(i + 1)) + '</b>'}${avatar(p, 38, 14)}<div style="flex:1"><b>${esc(p.name)}</b>${badges(p)}</div><b style="color:var(--acc)">${bn(p.tokens)}</b></div>`).join('');
+}
+async function renderAchievements(){
+  curView = 'achieve'; renderShell();
+  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">🎖 তোমার অর্জন</div><div id="achList"><div class="empty">লোড হচ্ছে...</div></div></div>`;
+  const [posts, likesGot] = await Promise.all([
+    sb.from('posts').select('id', { count: 'exact', head: true }).eq('user_id', me.id),
+    sb.from('posts').select('id').eq('user_id', me.id).limit(200)
+  ]);
+  let likeCount = 0;
+  if (likesGot.data && likesGot.data.length) {
+    const { count } = await sb.from('likes').select('id', { count: 'exact', head: true }).in('post_id', likesGot.data.map(p => p.id));
+    likeCount = count || 0;
+  }
+  const items = [
+    ['✍️', 'প্রথম পোস্ট', (posts.count || 0) >= 1], ['📚', 'লেখক — ১০টি পোস্ট', (posts.count || 0) >= 10],
+    ['❤️', 'ভালোবাসা পেয়েছ — ২৫ লাইক', likeCount >= 25], ['🔥', '৭ দিনের স্ট্রিক', (me.login_streak || 0) >= 7],
+    ['👥', 'বন্ধু মহল — ১০ বন্ধু', friendIds.size >= 10], ['💎', 'ধনী — ৫০০ টোকেন', (me.tokens || 0) >= 500],
+    ['💬', 'আড্ডাবাজ — মন্তব্যে সক্রিয়', true]
+  ];
+  const el = document.getElementById('achList');
+  if (el) el.innerHTML = `<div class="card" style="padding:6px 15px">${items.map(([ic, t, got]) => `<div class="earn" style="opacity:${got ? 1 : 0.45}"><span class="eic">${ic}</span><div><b>${t}</b></div><span>${got ? '✅' : '🔒'}</span></div>`).join('')}</div>`;
+}
+async function renderCreator(){
+  curView = 'creator'; renderShell();
+  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">📊 ক্রিয়েটর ড্যাশবোর্ড</div><div id="creBody"><div class="empty">লোড হচ্ছে...</div></div></div>`;
+  const { data: myPosts } = await sb.from('posts').select('*').eq('user_id', me.id).order('created_at', { ascending: false }).limit(100);
+  const posts = myPosts && myPosts.length ? await fetchPostsByIds(myPosts) : [];
+  const totalLikes = posts.reduce((s, p) => s + (p._likes || 0), 0);
+  const totalComments = posts.reduce((s, p) => s + (p._comments || 0), 0);
+  const weekAgo = Date.now() - 7 * 864e5;
+  const weekPosts = posts.filter(p => new Date(p.created_at).getTime() > weekAgo);
+  const top = [...posts].sort((a, b) => (b._likes || 0) - (a._likes || 0))[0];
+  const { count: followers } = await sb.from('follows').select('follower', { count: 'exact', head: true }).eq('following', me.id);
+  const { count: viewsCount } = await sb.from('profile_views').select('viewer', { count: 'exact', head: true }).eq('profile', me.id);
+  const el = document.getElementById('creBody');
+  if (el) el.innerHTML = `
+    <div class="stats" style="margin:12px"><div><b>${bn(posts.length)}</b><small>মোট পোস্ট</small></div><div><b>${bn(totalLikes)}</b><small>মোট লাইক</small></div><div><b>${bn(totalComments)}</b><small>মোট মন্তব্য</small></div></div>
+    <div class="stats" style="margin:0 12px"><div><b>${bn(followers || 0)}</b><small>ফলোয়ার</small></div><div><b>${bn(viewsCount || 0)}</b><small>প্রোফাইল ভিউ</small></div><div><b>🔥 ${bn(me.login_streak || 0)}</b><small>দিনের স্ট্রিক</small></div></div>
+    <div class="seclabel">📅 সাপ্তাহিক রিপোর্ট (গত ৭ দিন)</div>
+    <div class="card"><p style="font-size:14px;line-height:1.7">এই সপ্তাহে তুমি <b>${bn(weekPosts.length)}টি</b> পোস্ট করেছ। মোট লাইক <b>${bn(totalLikes)}</b>, মন্তব্য <b>${bn(totalComments)}</b>। ${weekPosts.length ? 'দারুণ চলছে — এভাবেই চালিয়ে যাও! 🎉' : 'এই সপ্তাহে একটা পোস্ট করে শুরু করো!'}</p></div>
+    ${top ? `<div class="seclabel">🏆 তোমার সেরা পোস্ট</div>` + postCard(top) : ''}`;
+}
+
+/* ---------- V2: ALBUMS / PAGES / EVENTS ---------- */
+async function renderAlbums(uid = null){
+  curView = 'albums'; renderShell();
+  const owner = uid || me.id;
+  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">🖼 ছবির অ্যালবাম</div>
+    ${owner === me.id ? `<div style="padding:12px 12px 0"><button class="btn block" onclick="createAlbumSheet()">+ নতুন অ্যালবাম</button></div>` : ''}
+    <div id="albumList" style="padding:12px"><div class="empty">লোড হচ্ছে...</div></div></div>`;
+  const { data } = await sb.from('albums').select('*').eq('user_id', owner).order('created_at', { ascending: false });
+  const el = document.getElementById('albumList');
+  if (el) el.innerHTML = (data || []).length ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">${data.map(a => `<button class="card" style="margin:0;text-align:left;cursor:pointer" onclick="openAlbum('${a.id}')"><b>📁 ${esc(a.name)}</b><br><small style="color:var(--mut)">${timeAgo(a.created_at)}</small></button>`).join('')}</div>` : '<div class="card empty">কোনো অ্যালবাম নেই</div>';
+}
+function createAlbumSheet(){
+  sheet(`<h3>নতুন অ্যালবাম</h3><input class="field" id="albTitle" placeholder="অ্যালবামের নাম (যেমন: কক্সবাজার ভ্রমণ)"><button class="btn block" onclick="createAlbum()">বানাও</button>`);
+}
+async function createAlbum(){
+  const title = document.getElementById('albTitle').value.trim(); if (!title) return;
+  const { error } = await sb.from('albums').insert({ user_id: me.id, name: title });
+  if (error) { toast('হয়নি'); return; }
+  closeSheet(); toast('অ্যালবাম তৈরি ✓'); renderAlbums();
+}
+async function openAlbum(albumId){
+  const { data: album } = await sb.from('albums').select('*').eq('id', albumId).single();
+  const { data: photos } = await sb.from('album_photos').select('*').eq('album_id', albumId).order('created_at');
+  sheet(`<h3>📁 ${esc(album ? album.name : 'অ্যালবাম')}</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">${(photos || []).map(ph => `<img src="${esc(ph.image_url)}" style="width:100%;border-radius:10px;aspect-ratio:1;object-fit:cover">`).join('') || '<p style="color:var(--mut);font-size:13.5px">এখনো ছবি নেই</p>'}</div>
+    ${album && album.user_id === me.id ? `<label class="btn block" style="margin-top:12px;cursor:pointer">+ ছবি যোগ করো<input type="file" accept="image/*" style="display:none" onchange="addAlbumPhoto('${albumId}',this)"></label>` : ''}`);
+}
+async function addAlbumPhoto(albumId, input){
+  const f = input.files[0]; if (!f) return;
+  const url = await uploadImage(f);
+  if (!url) { toast('আপলোড হয়নি'); return; }
+  await sb.from('album_photos').insert({ album_id: albumId, image_url: url });
+  openAlbum(albumId);
+}
+async function renderPages(){
+  curView = 'pages'; renderShell();
+  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">📄 পেজ</div>
+    <div style="padding:12px 12px 0"><button class="btn block" onclick="createPageSheet()">+ নতুন পেজ বানাও</button></div>
+    <div class="card" id="pageList" style="padding:6px 15px"><div class="empty">লোড হচ্ছে...</div></div></div>`;
+  const { data } = await sb.from('pages').select('*').order('created_at', { ascending: false }).limit(40);
+  (data || []).forEach(pg => pagesCache[pg.id] = pg);
+  const el = document.getElementById('pageList');
+  if (el) el.innerHTML = (data || []).length ? data.map(pg => `<div class="row">${avatar(pg, 42, 15)}<div style="flex:1"><b>${esc(pg.name)}</b><small style="display:block;color:var(--faint)">${esc(pg.category || 'সাধারণ')}</small></div><button class="btn sm" onclick="renderPageDetail('${pg.id}')">খোলো</button></div>`).join('') : '<div class="empty">এখনো কোনো পেজ নেই</div>';
+}
+function createPageSheet(){
+  sheet(`<h3>নতুন পেজ</h3><input class="field" id="pgName" placeholder="পেজের নাম"><input class="field" id="pgCat" placeholder="ধরন (যেমন: ব্যবসা, কমিউনিটি, ব্লগ)"><textarea class="field" id="pgAbout" placeholder="পেজ সম্পর্কে"></textarea><button class="btn block" onclick="createPage()">পেজ বানাও</button>`);
+}
+async function createPage(){
+  const name = document.getElementById('pgName').value.trim(); if (!name) { toast('নাম দাও'); return; }
+  const { error } = await sb.from('pages').insert({ created_by: me.id, name, category: document.getElementById('pgCat').value.trim(), about: document.getElementById('pgAbout').value.trim() });
+  if (error) { toast('হয়নি'); return; }
+  closeSheet(); toast('পেজ তৈরি ✓'); renderPages();
+}
+async function renderPageDetail(pageId){
+  curView = 'pages'; renderShell();
+  const { data: pg } = await sb.from('pages').select('*').eq('id', pageId).single();
+  if (!pg) { renderPages(); return; }
+  pagesCache[pg.id] = pg;
+  const { data: follows } = await sb.from('page_follows').select('user_id').eq('page_id', pageId);
+  const iFollow = (follows || []).some(f => f.user_id === me.id);
+  view().innerHTML = `<div class="view">
+    <div class="cover"></div><div class="prof"><div class="big">${pg.avatar_url ? `<img src="${esc(pg.avatar_url)}">` : '📄'}</div>
+    <div style="font-size:19px;font-weight:800">${esc(pg.name)}</div>
+    <p style="color:var(--mut);font-size:13px">${esc(pg.category || '')} · ${bn((follows || []).length)} ফলোয়ার</p>
+    ${pg.about ? `<p style="font-size:13.5px;margin-top:6px">${esc(pg.about)}</p>` : ''}
+    <div style="margin-top:12px;display:flex;gap:8px;justify-content:center">
+      <button class="btn ${iFollow ? 'ghost' : ''}" onclick="togglePageFollow('${pageId}',${iFollow})">${iFollow ? 'ফলো করছ ✓' : 'ফলো করো'}</button>
+      ${pg.created_by === me.id ? `<button class="btn" onclick="openComposer(null,'${pageId}')">পেজে পোস্ট করো</button>` : ''}
+    </div></div>
+    <div class="seclabel">পেজের পোস্ট</div><div id="pagePosts"><div class="empty">লোড হচ্ছে...</div></div></div>`;
+  const { data: raw } = await sb.from('posts').select('*').eq('page_id', pageId).order('created_at', { ascending: false }).limit(30);
+  const posts = raw && raw.length ? await fetchPostsByIds(raw) : [];
+  const el = document.getElementById('pagePosts');
+  if (el) el.innerHTML = posts.length ? posts.map(postCard).join('') : '<div class="card empty">এই পেজে এখনো পোস্ট নেই</div>';
+}
+async function togglePageFollow(pageId, following){
+  if (following) await sb.from('page_follows').delete().eq('page_id', pageId).eq('user_id', me.id);
+  else await sb.from('page_follows').insert({ page_id: pageId, user_id: me.id });
+  renderPageDetail(pageId);
+}
+async function renderEvents(){
+  curView = 'events'; renderShell();
+  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">📅 ইভেন্ট</div>
+    <div style="padding:12px 12px 0"><button class="btn block" onclick="createEventSheet()">+ নতুন ইভেন্ট</button></div>
+    <div id="eventList" style="padding:12px"><div class="empty">লোড হচ্ছে...</div></div></div>`;
+  const { data } = await sb.from('events').select('*').gte('starts_at', new Date(Date.now() - 864e5).toISOString()).order('starts_at').limit(40);
+  const ids = (data || []).map(e => e.id);
+  const { data: rsvps } = ids.length ? await sb.from('event_rsvps').select('*').in('event_id', ids) : { data: [] };
+  await cacheProfiles((data || []).map(e => e.created_by));
+  const el = document.getElementById('eventList');
+  if (el) el.innerHTML = (data || []).length ? data.map(e => {
+    const going = (rsvps || []).filter(r => r.event_id === e.id);
+    const mine = going.some(r => r.user_id === me.id);
+    return `<div class="card"><b style="font-size:15.5px">🎉 ${esc(e.title)}</b><br><small style="color:var(--mut)">🗓 ${new Date(e.starts_at).toLocaleString('bn-BD')} ${e.place ? '· 📍 ' + esc(e.place) : ''}</small>
+    <div style="margin-top:8px;display:flex;gap:8px;align-items:center"><button class="btn ${mine ? 'ghost' : ''} sm" onclick="toggleRsvp('${e.id}',${mine})">${mine ? 'যাচ্ছ ✓' : 'আমি যাব'}</button><small style="color:var(--mut)">${bn(going.length)} জন যাচ্ছে · আয়োজক: ${esc(prof(e.created_by).name)}</small></div></div>`;
+  }).join('') : '<div class="card empty">সামনে কোনো ইভেন্ট নেই — তুমিই একটা বানাও!</div>';
+}
+function createEventSheet(){
+  sheet(`<h3>নতুন ইভেন্ট</h3><input class="field" id="evTitle" placeholder="ইভেন্টের নাম"><input class="field" type="datetime-local" id="evWhen"><input class="field" id="evPlace" placeholder="জায়গা"><button class="btn block" onclick="createEvent()">ইভেন্ট বানাও</button>`);
+}
+async function createEvent(){
+  const title = document.getElementById('evTitle').value.trim();
+  const when = document.getElementById('evWhen').value;
+  if (!title || !when) { toast('নাম আর সময় দাও'); return; }
+  const { error } = await sb.from('events').insert({ created_by: me.id, title, starts_at: new Date(when).toISOString(), place: document.getElementById('evPlace').value.trim() });
+  if (error) { toast('হয়নি'); return; }
+  closeSheet(); toast('ইভেন্ট তৈরি ✓'); renderEvents();
+}
+async function toggleRsvp(eventId, going){
+  if (going) await sb.from('event_rsvps').delete().eq('event_id', eventId).eq('user_id', me.id);
+  else await sb.from('event_rsvps').insert({ event_id: eventId, user_id: me.id });
+  renderEvents();
+}
+
+/* ---------- V2: SERVICE BOARD / MARKET / GOV ---------- */
+let serviceTab = 'blood';
+async function renderService(tab = 'blood'){
+  curView = 'service'; serviceTab = tab; renderShell();
+  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">🤝 সেবা বোর্ড</div>
+    <div class="seg"><button class="${tab === 'blood' ? 'on' : ''}" onclick="renderService('blood')">🩸 রক্ত</button><button class="${tab === 'lost' ? 'on' : ''}" onclick="renderService('lost')">🔍 হারানো-প্রাপ্তি</button><button class="${tab === 'jobs' ? 'on' : ''}" onclick="renderService('jobs')">💼 চাকরি</button></div>
+    <div style="padding:0 12px"><button class="btn block" onclick="serviceAddSheet('${tab}')">+ নতুন পোস্ট দাও</button></div>
+    <div id="svcList" style="padding:12px"><div class="empty">লোড হচ্ছে...</div></div></div>`;
+  const table = tab === 'blood' ? 'blood_requests' : tab === 'lost' ? 'lost_items' : 'jobs';
+  const { data } = await sb.from(table).select('*').order('created_at', { ascending: false }).limit(40);
+  await cacheProfiles((data || []).map(r => r.user_id));
+  const el = document.getElementById('svcList');
+  if (!el) return;
+  if (!(data || []).length) { el.innerHTML = '<div class="card empty">এখনো কিছু নেই</div>'; return; }
+  el.innerHTML = data.map(r => {
+    const a = prof(r.user_id);
+    let main = '', sub = '';
+    if (tab === 'blood') { main = `🩸 <b>${esc(r.blood_group)} রক্ত দরকার</b>`; sub = `${r.hospital ? '🏥 ' + esc(r.hospital) + ' · ' : ''}${r.area ? '📍 ' + esc(r.area) : ''}`; }
+    if (tab === 'lost') { main = `${r.kind === 'found' ? '🎉 পাওয়া গেছে' : '🔍 হারিয়ে গেছে'}: <b>${esc(r.title)}</b>`; sub = `${r.area ? '📍 ' + esc(r.area) : ''}`; }
+    if (tab === 'jobs') { main = `💼 <b>${esc(r.title)}</b>${r.company ? ' — ' + esc(r.company) : ''}`; sub = `${r.area ? '📍 ' + esc(r.area) : ''}`; }
+    return `<div class="card"><div style="font-size:15px">${main}</div><small style="color:var(--mut);line-height:1.6">${sub}</small><div style="margin-top:7px"><button class="btn ghost sm" onclick="goProfile('${r.user_id}')">${esc(a.name)}</button> ${r.user_id !== me.id ? `<button class="btn sm" onclick="startChat('${r.user_id}')">মেসেজ</button>` : ''} <small style="color:var(--faint)">${timeAgo(r.created_at)}</small></div></div>`;
+  }).join('');
+}
+function serviceAddSheet(tab){
+  if (tab === 'blood') sheet(`<h3>🩸 রক্তের আবেদন</h3><input class="field" id="svGroup" placeholder="রক্তের গ্রুপ (যেমন: B+)"><input class="field" id="svHospital" placeholder="হাসপাতাল"><input class="field" id="svArea" placeholder="এলাকা"><button class="btn block" onclick="serviceAdd('blood')">পোস্ট করো</button>`);
+  else if (tab === 'lost') sheet(`<h3>🔍 হারানো-প্রাপ্তি</h3><select class="field" id="svKind"><option value="lost">হারিয়ে গেছে</option><option value="found">পাওয়া গেছে</option></select><input class="field" id="svTitle" placeholder="কী জিনিস?"><input class="field" id="svArea" placeholder="কোন এলাকায়?"><button class="btn block" onclick="serviceAdd('lost')">পোস্ট করো</button>`);
+  else sheet(`<h3>💼 চাকরির পোস্ট</h3><input class="field" id="svTitle" placeholder="পদের নাম"><input class="field" id="svCompany" placeholder="প্রতিষ্ঠান"><input class="field" id="svArea" placeholder="এলাকা"><button class="btn block" onclick="serviceAdd('jobs')">পোস্ট করো</button>`);
+}
+async function serviceAdd(tab){
+  let row = { user_id: me.id }, table = '';
+  if (tab === 'blood') { table = 'blood_requests'; row.blood_group = document.getElementById('svGroup').value.trim(); row.hospital = document.getElementById('svHospital').value.trim(); row.area = document.getElementById('svArea').value.trim(); if (!row.blood_group) { toast('রক্তের গ্রুপ দাও'); return; } }
+  if (tab === 'lost') { table = 'lost_items'; row.kind = document.getElementById('svKind').value; row.title = document.getElementById('svTitle').value.trim(); row.area = document.getElementById('svArea').value.trim(); if (!row.title) { toast('জিনিসের নাম দাও'); return; } }
+  if (tab === 'jobs') { table = 'jobs'; row.title = document.getElementById('svTitle').value.trim(); row.company = document.getElementById('svCompany').value.trim(); row.area = document.getElementById('svArea').value.trim(); if (!row.title) { toast('পদের নাম দাও'); return; } }
+  const { error } = await sb.from(table).insert(row);
+  if (error) { toast('হয়নি'); return; }
+  closeSheet(); toast('পোস্ট হয়েছে ✓'); renderService(tab);
+}
+let marketCat = 'সব';
+async function renderMarket(cat = 'সব'){
+  curView = 'market'; marketCat = cat; renderShell();
+  const cats = ['সব', 'বিক্রি', 'ফ্রি', 'সেবা', 'অফার', 'বই বিনিময়'];
+  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">🛍 আড্ডা বাজার</div>
+    <div style="display:flex;gap:6px;padding:12px 12px 0;flex-wrap:wrap">${cats.map(c => `<button class="btn ${c === cat ? '' : 'ghost'} sm" onclick="renderMarket('${c}')">${c}</button>`).join('')}</div>
+    <div style="padding:12px 12px 0"><button class="btn block" onclick="listingSheet()">+ বিজ্ঞাপন দাও</button></div>
+    <div id="mktList" style="padding:12px"><div class="empty">লোড হচ্ছে...</div></div>
+    <p style="padding:0 16px 8px;font-size:12px;color:var(--mut)">⚠️ কেনাবেচায় নিজে যাচাই করে লেনদেন করো — অগ্রিম টাকা পাঠানোর আগে সাবধান।</p></div>`;
+  let q = sb.from('listings').select('*').order('created_at', { ascending: false }).limit(40);
+  if (cat !== 'সব') q = q.eq('category', cat);
+  const { data } = await q;
+  await cacheProfiles((data || []).map(r => r.user_id));
+  const el = document.getElementById('mktList');
+  if (el) el.innerHTML = (data || []).length ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">${data.map(l => `<div class="card" style="margin:0">${l.image_url ? `<img src="${esc(l.image_url)}" style="width:100%;border-radius:10px;aspect-ratio:1.2;object-fit:cover">` : ''}<b style="font-size:14.5px">${esc(l.title)}</b><br><span class="pill">${esc(l.category)}</span> <b style="color:var(--acc)">${l.price ? '৳' + bn(l.price) : 'ফ্রি'}</b><br><small style="color:var(--mut)">${esc(prof(l.user_id).name)}</small><br>${l.user_id !== me.id ? `<button class="btn sm" style="margin-top:7px" onclick="startChat('${l.user_id}')">মেসেজ করো</button>` : `<button class="btn ghost sm" style="margin-top:7px" onclick="deleteListing('${l.id}')">মুছে ফেলো</button>`}</div>`).join('')}</div>` : '<div class="card empty">এই ক্যাটাগরিতে কিছু নেই</div>';
+}
+function listingSheet(){
+  sheet(`<h3>🛍 নতুন বিজ্ঞাপন</h3><input class="field" id="lsTitle" placeholder="জিনিসের নাম"><select class="field" id="lsCat"><option>বিক্রি</option><option>ফ্রি</option><option>সেবা</option><option>অফার</option><option>বই বিনিময়</option></select><input class="field" id="lsPrice" type="number" min="0" placeholder="দাম টাকায় (ফ্রি হলে ০ দাও)"><label style="font-size:13.5px;color:var(--mut)">ছবি <input type="file" id="lsImg" accept="image/*" style="font-size:12px"></label><button class="btn block" style="margin-top:10px" onclick="addListing()">বিজ্ঞাপন দাও</button>`);
+}
+async function addListing(){
+  const title = document.getElementById('lsTitle').value.trim(); if (!title) { toast('নাম দাও'); return; }
+  const f = document.getElementById('lsImg').files[0];
+  const image_url = f ? await uploadImage(f) : '';
+  const { error } = await sb.from('listings').insert({ user_id: me.id, title, category: document.getElementById('lsCat').value, price: parseInt(document.getElementById('lsPrice').value, 10) || 0, image_url });
+  if (error) { toast('হয়নি'); return; }
+  closeSheet(); toast('বিজ্ঞাপন দেওয়া হয়েছে ✓'); renderMarket('সব');
+}
+async function deleteListing(id){
+  await sb.from('listings').delete().eq('id', id);
+  toast('মোছা হয়েছে'); renderMarket(marketCat);
+}
+function renderGov(){
+  curView = 'gov'; renderShell();
+  const links = [
+    ['🏛', 'জাতীয় পোর্টাল (সব সেবা এক জায়গায়)', 'https://bangladesh.gov.bd'],
+    ['🆔', 'জাতীয় পরিচয়পত্র (NID) সেবা', 'https://services.nidw.gov.bd'],
+    ['📜', 'জন্ম নিবন্ধন', 'https://bdris.gov.bd'],
+    ['🛂', 'ই-পাসপোর্ট', 'https://www.epassport.gov.bd'],
+    ['🎓', 'শিক্ষা বোর্ডের ফলাফল', 'https://educationboardresults.gov.bd'],
+    ['👮', 'বাংলাদেশ পুলিশ', 'https://www.police.gov.bd'],
+    ['🚗', 'BRTA (ড্রাইভিং লাইসেন্স, গাড়ি)', 'https://www.brta.gov.bd'],
+    ['💡', 'বিদ্যুৎ বিল ও সেবা (DESCO)', 'https://desco.org.bd']
+  ];
+  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">🏛 সরকারি সেবার লিংক</div>
+    <p style="padding:8px 16px 0;font-size:13px;color:var(--mut)">সবগুলোই সরকারি অফিসিয়াল ওয়েবসাইট — লিংকে গিয়ে সরাসরি সেবা নাও।</p>
+    <div class="card" style="padding:6px 15px">${links.map(([ic, t, u]) => `<a class="menu-item" style="display:flex;text-decoration:none;color:var(--ink)" href="${u}" target="_blank" rel="noopener">${ic} ${t}<span style="margin-left:auto">↗</span></a>`).join('')}</div>
+    <div style="padding:0 12px"><button class="btn ghost block" onclick="openTag('পড়াশোনা')">📚 পড়াশোনা কর্নার</button></div>
+    <div style="padding:8px 12px 0"><button class="btn ghost block" onclick="openTag('রেসিপি')">🍳 রেসিপি কর্নার</button></div>
+    <div style="padding:8px 12px 0"><button class="btn ghost block" onclick="openTag('ভ্রমণ')">✈️ ভ্রমণ কর্নার</button></div></div>`;
+}
+
+/* ---------- V2: HABITS / PETS / ANON / CLOSE FRIENDS ---------- */
+async function renderHabits(){
+  curView = 'habits'; renderShell();
+  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">🌱 অভ্যাস ট্র্যাকার</div>
+    <div style="padding:12px 12px 0"><button class="btn block" onclick="habitSheet()">+ নতুন অভ্যাস</button></div>
+    <div id="habitList" style="padding:12px"><div class="empty">লোড হচ্ছে...</div></div></div>`;
+  const { data: habits } = await sb.from('habits').select('*').eq('user_id', me.id).order('created_at');
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const { data: logs } = await sb.from('habit_logs').select('*').eq('user_id', me.id).gte('day', new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10));
+  const el = document.getElementById('habitList');
+  if (el) el.innerHTML = (habits || []).length ? habits.map(h => {
+    const myLogs = (logs || []).filter(l => l.habit_id === h.id);
+    const doneToday = myLogs.some(l => l.day === todayStr);
+    let streak = 0; let d = new Date();
+    if (!doneToday) d.setDate(d.getDate() - 1);
+    const daySet = new Set(myLogs.map(l => l.day));
+    while (daySet.has(d.toISOString().slice(0, 10))) { streak++; d.setDate(d.getDate() - 1); }
+    return `<div class="card"><div style="display:flex;align-items:center;gap:10px"><span style="font-size:24px">🌱</span><div style="flex:1"><b>${esc(h.name)}</b><br><small style="color:var(--mut)">🔥 ধারাবাহিকতা: ${bn(streak)} দিন · মোট ${bn(myLogs.length)} বার</small></div>${doneToday ? '<span class="pill">আজ হয়েছে ✓</span>' : `<button class="btn sm" onclick="logHabit('${h.id}')">আজ করলাম</button>`}</div></div>`;
+  }).join('') : '<div class="card empty">এখনো কোনো অভ্যাস নেই — যেমন: বই পড়া, ব্যায়াম, নামাজ</div>';
+}
+function habitSheet(){
+  sheet(`<h3>নতুন অভ্যাস</h3><input class="field" id="hbTitle" placeholder="অভ্যাসের নাম (যেমন: ১০ পৃষ্ঠা বই পড়া)"><button class="btn block" onclick="addHabit()">যোগ করো</button>`);
+}
+async function addHabit(){
+  const title = document.getElementById('hbTitle').value.trim(); if (!title) return;
+  const { error } = await sb.from('habits').insert({ user_id: me.id, name: title });
+  if (error) { toast('হয়নি'); return; }
+  closeSheet(); renderHabits();
+}
+async function logHabit(habitId){
+  const { error } = await sb.from('habit_logs').insert({ habit_id: habitId, user_id: me.id, day: new Date().toISOString().slice(0, 10) });
+  if (error) { toast('আজকেরটা আগেই নেওয়া হয়েছে'); return; }
+  toast('দারুণ! আজকের অভ্যাস সম্পন্ন 🌱'); renderHabits();
+}
+async function renderPets(){
+  curView = 'pets'; renderShell();
+  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">🐾 পোষা প্রাণীর প্রোফাইল</div>
+    <div style="padding:12px 12px 0"><button class="btn block" onclick="petSheet()">+ আমার পোষা প্রাণী যোগ করো</button></div>
+    <div id="petList" style="padding:12px"><div class="empty">লোড হচ্ছে...</div></div></div>`;
+  const { data } = await sb.from('pets').select('*').order('created_at', { ascending: false }).limit(40);
+  await cacheProfiles((data || []).map(p => p.user_id));
+  const el = document.getElementById('petList');
+  if (el) el.innerHTML = (data || []).length ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">${data.map(p => `<div class="card" style="margin:0;text-align:center">${p.photo_url ? `<img src="${esc(p.photo_url)}" style="width:100%;border-radius:12px;aspect-ratio:1;object-fit:cover">` : '<div style="font-size:44px">🐾</div>'}<b>${esc(p.name)}</b><br><small style="color:var(--mut)">${esc(p.kind || '')}</small><br><small style="color:var(--faint)">মালিক: ${esc(prof(p.user_id).name)}</small>${p.user_id === me.id ? `<br><button class="btn ghost sm" style="margin-top:6px" onclick="deletePet('${p.id}')">মুছো</button>` : ''}</div>`).join('')}</div>` : '<div class="card empty">এখনো কোনো পোষা প্রাণী যোগ হয়নি</div>';
+}
+function petSheet(){
+  sheet(`<h3>🐾 পোষা প্রাণী</h3><input class="field" id="ptName" placeholder="নাম (যেমন: মিনি)"><input class="field" id="ptKind" placeholder="কী প্রাণী? (বিড়াল/কুকুর/পাখি...)"><label style="font-size:13.5px;color:var(--mut)">ছবি <input type="file" id="ptImg" accept="image/*" style="font-size:12px"></label><button class="btn block" style="margin-top:10px" onclick="addPet()">যোগ করো</button>`);
+}
+async function addPet(){
+  const name = document.getElementById('ptName').value.trim(); if (!name) { toast('নাম দাও'); return; }
+  const f = document.getElementById('ptImg').files[0];
+  const photo_url = f ? await uploadImage(f) : '';
+  const { error } = await sb.from('pets').insert({ user_id: me.id, name, kind: document.getElementById('ptKind').value.trim(), photo_url });
+  if (error) { toast('হয়নি'); return; }
+  closeSheet(); toast('যোগ হয়েছে 🐾'); renderPets();
+}
+async function deletePet(id){
+  await sb.from('pets').delete().eq('id', id); renderPets();
+}
+function askAnon(uid){
+  sheet(`<h3>🙈 বেনামে প্রশ্ন করো</h3><p style="font-size:13px;color:var(--mut);margin-bottom:10px">তোমার নাম ওর কাছে যাবে না। ভদ্রভাবে প্রশ্ন করো।</p><textarea class="field" id="anonQ" placeholder="তোমার প্রশ্ন..."></textarea><button class="btn block" onclick="sendAnon('${uid}')">পাঠাও</button>`);
+}
+async function sendAnon(uid){
+  const body = document.getElementById('anonQ').value.trim(); if (!body) return;
+  const { error } = await sb.from('anon_questions').insert({ target: uid, body });
+  if (error) { toast('যায়নি'); return; }
+  await sb.from('notifications').insert({ user_id: uid, actor_id: null, type: 'anon' });
+  closeSheet(); toast('বেনামে প্রশ্ন পাঠানো হয়েছে 🙈');
+}
+async function renderAnon(){
+  curView = 'anon'; renderShell();
+  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">🙈 বেনামি প্রশ্নের ইনবক্স</div>
+    <p style="padding:6px 16px 0;font-size:13px;color:var(--mut)">বন্ধুরা তোমার প্রোফাইল থেকে বেনামে প্রশ্ন করতে পারে। উত্তর দিলে সেটা তোমার উত্তরের জায়গায় দেখা যাবে।</p>
+    <div id="anonList" style="padding:12px"><div class="empty">লোড হচ্ছে...</div></div></div>`;
+  const { data } = await sb.from('anon_questions').select('*').eq('target', me.id).order('created_at', { ascending: false }).limit(40);
+  const el = document.getElementById('anonList');
+  if (el) el.innerHTML = (data || []).length ? data.map(q => `<div class="card"><p style="font-size:14.5px">❓ ${esc(q.body)}</p><small style="color:var(--faint)">${timeAgo(q.created_at)}</small>${q.answer ? `<p style="margin-top:8px;background:var(--bg2,#F5F3FF);padding:9px 11px;border-radius:10px;font-size:14px">💬 তোমার উত্তর: ${esc(q.answer)}</p>` : `<div style="display:flex;gap:8px;margin-top:9px"><input class="field" style="margin:0;flex:1" id="ans-${q.id}" placeholder="উত্তর লেখো..."><button class="btn sm" onclick="answerAnon('${q.id}')">উত্তর দাও</button></div>`}</div>`).join('') : '<div class="card empty">এখনো কোনো বেনামি প্রশ্ন আসেনি</div>';
+}
+async function answerAnon(qid){
+  const v = document.getElementById('ans-' + qid).value.trim(); if (!v) return;
+  await sb.from('anon_questions').update({ answer: v }).eq('id', qid);
+  toast('উত্তর দেওয়া হয়েছে'); renderAnon();
+}
+async function renderCloseFriends(){
+  curView = 'closefriends'; renderShell();
+  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">💚 কাছের বন্ধুরা</div>
+    <p style="padding:6px 16px 0;font-size:13px;color:var(--mut)">পোস্ট করার সময় "কাছের বন্ধুরা" বেছে নিলে শুধু এরাই দেখবে।</p>
+    <div class="card" id="cfList" style="padding:6px 15px"><div class="empty">লোড হচ্ছে...</div></div></div>`;
+  await loadMyRelations();
+  await cacheProfiles([...friendIds]);
+  const el = document.getElementById('cfList');
+  if (el) el.innerHTML = friendIds.size ? [...friendIds].map(id => { const p = prof(id); const has = myCloseIds.has(id); return userRow(p, `<button class="btn ${has ? 'ghost' : ''} sm" onclick="toggleCloseFriend('${id}',${has})">${has ? 'কাছের ✓ সরাও' : 'কাছের করো'}</button>`); }).join('') : '<div class="empty">আগে কিছু বন্ধু বানাও</div>';
+}
+async function toggleCloseFriend(uid, has){
+  if (has) await sb.from('close_friends').delete().eq('owner', me.id).eq('friend', uid);
+  else await sb.from('close_friends').insert({ owner: me.id, friend: uid });
+  renderCloseFriends();
+}
+
+/* ---------- V2: PROFILE THEMES ---------- */
+const PROFILE_THEMES = [
+  ['sunset', '🌇 সূর্যাস্ত', 'linear-gradient(120deg,#F59E0B,#EF4444,#EC4899)'],
+  ['ocean', '🌊 সাগর', 'linear-gradient(120deg,#0EA5E9,#2563EB,#7C3AED)'],
+  ['forest', '🌲 বন', 'linear-gradient(120deg,#059669,#65A30D,#F59E0B)'],
+  ['royal', '👑 রাজকীয়', 'linear-gradient(120deg,#7C3AED,#DB2777,#F59E0B)'],
+  ['night', '🌃 রাতের আকাশ', 'linear-gradient(120deg,#111827,#374151,#6D28D9)']
+];
+async function renderThemes(){
+  curView = 'themes'; renderShell();
+  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">🎨 প্রোফাইল থিম</div>
+    <p style="padding:6px 16px 0;font-size:13px;color:var(--mut)">১০০ টোকেনে প্রিমিয়াম থিম কিনলে তোমার প্রোফাইলের কভার জায়গায় সেই রঙ ঝলমল করবে। ব্যালেন্স: <b>${bn(me.tokens)}</b></p>
+    <div style="padding:12px">${PROFILE_THEMES.map(([id, name, grad]) => `<div class="card" style="overflow:hidden"><div style="height:64px;border-radius:12px;background:${grad}"></div><div style="display:flex;align-items:center;margin-top:10px"><b style="flex:1">${name}</b>${me.theme === id ? '<span class="pill">চালু আছে ✓</span>' : `<button class="btn sm" onclick="buyTheme('${id}')">১০০ টোকেনে নাও</button>`}</div></div>`).join('')}
+    ${me.theme ? `<button class="btn ghost block" onclick="buyTheme('')">থিম সরিয়ে দাও</button>` : ''}</div></div>`;
+}
+async function buyTheme(themeId){
+  if (!themeId) { await sb.from('profiles').update({ theme: '' }).eq('id', me.id); me.theme = ''; toast('থিম সরানো হয়েছে'); renderThemes(); return; }
+  const { error } = await sb.rpc('rpc_spend', { p_item: 'theme', p_target: null });
+  if (error) { toast('টোকেন যথেষ্ট নেই (লাগবে ১০০)'); return; }
+  me.tokens -= 100;
+  await sb.from('profiles').update({ theme: themeId }).eq('id', me.id);
+  me.theme = themeId; profilesCache[me.id] = me;
+  toast('থিম চালু হয়েছে 🎨'); renderThemes();
+}
+
+/* ---------- BOOT ---------- */
+async function loadMyRelations(){
+  const [fr, fo, bl, cfIn, cfOut] = await Promise.all([
+    sb.from('friendships').select('*').or(`requester.eq.${me.id},addressee.eq.${me.id}`),
+    sb.from('follows').select('following').eq('follower', me.id),
+    sb.from('blocks').select('blocked').eq('blocker', me.id),
+    sb.from('close_friends').select('owner').eq('friend', me.id),
+    sb.from('close_friends').select('friend').eq('owner', me.id)
+  ]);
+  friendIds = new Set(); (fr.data || []).forEach(r => { if (r.status === 'accepted') friendIds.add(r.requester === me.id ? r.addressee : r.requester); });
+  followIds = new Set((fo.data || []).map(r => r.following));
+  blockedIds = new Set((bl.data || []).map(r => r.blocked));
+  closeOfIds = new Set((cfIn.data || []).map(r => r.owner));
+  myCloseIds = new Set((cfOut.data || []).map(r => r.friend));
+  window._friendRows = fr.data || [];
+}
+async function refreshNotifBadge(){
+  const { count } = await sb.from('notifications').select('id', { count: 'exact', head: true }).eq('user_id', me.id).eq('is_read', false);
+  unreadNotifs = count || 0; renderShell();
+}
+function subscribeNotifs(){
+  if (notifChannel) sb.removeChannel(notifChannel);
+  notifChannel = sb.channel('notifs-' + me.id)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: 'user_id=eq.' + me.id }, () => { unreadNotifs++; renderShell(); })
+    .subscribe();
+}
+async function boot(){
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { renderAuth(); return; }
+  let { data: profile } = await sb.from('profiles').select('*').eq('id', session.user.id).single();
+  if (!profile) {
+    const name = session.user.user_metadata?.name || (session.user.email || 'ব্যবহারকারী').split('@')[0];
+    const ins = await sb.from('profiles').insert({ id: session.user.id, name, tokens: 100 }).select().single();
+    profile = ins.data;
+  }
+  me = profile; profilesCache[me.id] = me;
+  if (localStorage.getItem('adda-theme') === 'dark') document.documentElement.classList.add('dark');
+  if (localStorage.getItem('adda-big') === '1') document.documentElement.classList.add('big');
+  await loadMyRelations();
+  // login streak: last_login_date still holds YESTERDAY-or-older here (rpc_award updates it)
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const yestStr = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
+  let newStreak = me.login_streak || 0;
+  if (me.last_login_date !== todayStr) newStreak = (me.last_login_date === yestStr) ? newStreak + 1 : 1;
+  sb.rpc('rpc_award', { p_reason: 'login' }).then(async ({ data }) => {
+    if (typeof data === 'number') { me.tokens = data; profilesCache[me.id] = me; }
+    if (me.last_login_date !== todayStr) {
+      me.login_streak = newStreak; me.last_login_date = todayStr;
+      await sb.from('profiles').update({ login_streak: newStreak }).eq('id', me.id);
+    }
+  });
+  await refreshNotifBadge();
+  subscribeNotifs();
+  startBreakReminder();
+  const qu = new URLSearchParams(location.search).get('u');
+  if (qu) {
+    const { data: target } = await sb.from('profiles').select('id').eq('username', qu).maybeSingle();
+    if (target) { goProfile(target.id); return; }
+  }
+  go('feed');
+}
+document.addEventListener('DOMContentLoaded', boot);
+
+/* ---------- UPLOAD ---------- */
+async function uploadImage(file){
+  if (!file) return '';
+  const path = me.id + '/' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.jpg';
+  const { error } = await sb.storage.from('media').upload(path, file, { contentType: file.type || 'image/jpeg' });
+  if (error) { toast('ছবি আপলোড হয়নি'); return ''; }
+  return sb.storage.from('media').getPublicUrl(path).data.publicUrl;
+}
+
+/* ---------- POSTS ---------- */
+async function fetchPosts(opts = {}){
+  let q = sb.from('posts').select('*').order('created_at', { ascending: false }).limit(120);
+  if (opts.groupId) q = q.eq('group_id', opts.groupId);
+  else if (!opts.authorId && !opts.tag && !opts.savedOnly) q = q.is('group_id', null);
+  if (opts.authorId) q = q.eq('user_id', opts.authorId);
+  const { data: posts } = await q;
+  let list = posts || [];
+  if (opts.tag) list = list.filter(p => (p.body || '').includes('#' + opts.tag));
+  if (opts.savedOnly) {
+    const { data: sv } = await sb.from('saves').select('post_id').eq('user_id', me.id);
+    const ids = new Set((sv || []).map(r => r.post_id));
+    list = list.filter(p => ids.has(p.id));
+  }
+  list = list.filter(p => !blockedIds.has(p.user_id));
+  if (opts.archivedOnly) list = list.filter(p => p.archived);
+  else list = list.filter(p => !p.archived);
+  const nowMs = Date.now();
+  list = list.filter(p => {
+    if (p.scheduled_at && new Date(p.scheduled_at).getTime() > nowMs && p.user_id !== me.id) return false;
+    if (p.user_id === me.id) return true;
+    const aud = p.audience || 'public';
+    if (aud === 'public') return true;
+    if (aud === 'friends') return friendIds.has(p.user_id);
+    if (aud === 'close') return closeOfIds.has(p.user_id);
+    if (aud === 'supporters') return followIds.has(p.user_id);
+    return true;
+  });
+  if (!list.length) return [];
+  const ids = list.map(p => p.id);
+  await cacheProfiles(list.map(p => p.user_id));
+  await cachePages(list.map(p => p.page_id));
+  const [likes, comments, myLikes, mySaves, pollVotes] = await Promise.all([
+    sb.from('likes').select('post_id').in('post_id', ids),
+    sb.from('comments').select('post_id').in('post_id', ids),
+    sb.from('likes').select('post_id').eq('user_id', me.id).in('post_id', ids),
+    sb.from('saves').select('post_id').eq('user_id', me.id).in('post_id', ids),
+    sb.from('poll_votes').select('*').in('post_id', ids)
+  ]);
+  const lc = {}, cc = {}, pv = {};
+  (likes.data || []).forEach(r => lc[r.post_id] = (lc[r.post_id] || 0) + 1);
+  (comments.data || []).forEach(r => cc[r.post_id] = (cc[r.post_id] || 0) + 1);
+  (pollVotes.data || []).forEach(r => { (pv[r.post_id] = pv[r.post_id] || []).push(r); });
+  const myL = new Set((myLikes.data || []).map(r => r.post_id));
+  const myS = new Set((mySaves.data || []).map(r => r.post_id));
+  list.forEach(p => {
+    p._likes = lc[p.id] || 0; p._comments = cc[p.id] || 0;
+    p._liked = myL.has(p.id); p._saved = myS.has(p.id);
+    p._votes = pv[p.id] || []; p._myVote = (pv[p.id] || []).find(v => v.user_id === me.id);
+  });
+  return list;
+}
+function feedScore(p){
+  let s = p._likes * 3 + p._comments * 5;
+  if (p.boost_until && new Date(p.boost_until) > new Date()) s += 500;
+  if (friendIds.has(p.user_id) || followIds.has(p.user_id)) s += 40;
+  if (p.user_id === me.id) s += 10;
+  s -= (Date.now() - new Date(p.created_at).getTime()) / 3600000 * 0.7;
+  return s;
+}
+function pollHtml(p){
+  if (!p.poll || !Array.isArray(p.poll.options)) return '';
+  const total = p._votes.length;
+  return `<div class="poll">${p.poll.options.map((opt, i) => {
+    const cnt = p._votes.filter(v => v.option_idx === i).length;
+    const pct = total ? Math.round(cnt / total * 100) : 0;
+    return `<button onclick="votePoll('${p.id}',${i})">${p._myVote ? `<span class="fill" style="width:${pct}%"></span>` : ''}<span>${esc(opt)}${p._myVote && p._myVote.option_idx === i ? ' ✓' : ''}</span>${p._myVote ? `<span class="pct">${bn(pct)}%</span>` : ''}</button>`;
+  }).join('')}<small style="color:var(--faint);font-size:11.5px">${bn(total)}টি ভোট</small></div>`;
+}
+function postCard(p){
+  const pg = p.page_id ? pagesCache[p.page_id] : null;
+  const a = pg || prof(p.user_id);
+  const openFn = pg ? `renderPageDetail('${pg.id}')` : `goProfile('${a.id}')`;
+  const boosted = p.boost_until && new Date(p.boost_until) > new Date();
+  return `<div class="card" id="post-${p.id}">
+    <div class="chead">
+      <a href="#" onclick="${openFn};return false">${avatar(a, 42, 16)}</a>
+      <div style="flex:1;min-width:0"><b><a href="#" style="color:var(--ink)" onclick="${openFn};return false">${esc(a.name)}</a>${pg ? '<span class="pill">পেজ</span>' : badges(a)}${p.pinned ? ' 📌' : ''}${boosted ? '<span class="boosted">বুস্ট করা</span>' : ''}</b>
+      <small>${timeAgo(p.created_at)}${p.location ? ' · 📍 ' + esc(p.location) : ''}${p.feeling ? ' · অনুভূতি: ' + esc(p.feeling) : ''}</small></div>
+      <button class="icb" style="width:32px;height:32px" onclick="postMenu('${p.id}')">${I.dots}</button>
+    </div>
+    ${p.body ? `<div class="ptext">${linkTags(p.body)}</div>` : ''}
+    ${p.image_url ? (localStorage.getItem('adda-saver') === '1' ? `<button class="btn ghost sm" onclick="this.outerHTML='<img class=pimg src=\\'${esc(p.image_url)}\\'>'">🖼 ছবি দেখো (ডেটা সেভার)</button>` : `<img class="pimg" src="${esc(p.image_url)}" loading="lazy" alt="">`) : ''}
+    ${p.video_url ? `<video class="pimg" src="${esc(p.video_url)}" controls preload="metadata" playsinline></video>` : ''}
+    ${pollHtml(p)}
+    <div class="counts"><span>${bn(p._likes)} লাইক</span><span>${bn(p._comments)} মন্তব্য</span></div>
+    <div class="acts">
+      <button class="${p._liked ? 'liked' : ''}" onclick="toggleLike('${p.id}',this)">${I.heart}লাইক</button>
+      <button onclick="openComments('${p.id}')">${I.comment}মন্তব্য</button>
+      <button class="${p._saved ? 'saved' : ''}" onclick="toggleSave('${p.id}',this)">${I.bookmark}সেভ</button>
+    </div></div>`;
+}
+async function toggleLike(postId, btn){
+  const { data: post } = await sb.from('posts').select('user_id').eq('id', postId).single();
+  const { data: existing } = await sb.from('likes').select('post_id').eq('post_id', postId).eq('user_id', me.id).maybeSingle();
+  if (existing) { await sb.from('likes').delete().eq('post_id', postId).eq('user_id', me.id); }
+  else { await sb.from('likes').insert({ post_id: postId, user_id: me.id }); if (post) notify(post.user_id, 'like', postId); }
+  refreshPost(postId);
+}
+async function toggleSave(postId, btn){
+  const { data: existing } = await sb.from('saves').select('post_id').eq('post_id', postId).eq('user_id', me.id).maybeSingle();
+  if (existing) { await sb.from('saves').delete().eq('post_id', postId).eq('user_id', me.id); toast('সেভ সরানো হয়েছে'); }
+  else { await sb.from('saves').insert({ post_id: postId, user_id: me.id }); toast('পোস্ট সেভ হয়েছে'); }
+  refreshPost(postId);
+}
+async function refreshPost(postId){
+  const el = document.getElementById('post-' + postId); if (!el) return;
+  const { data: p } = await sb.from('posts').select('*').eq('id', postId).single(); if (!p) { el.remove(); return; }
+  const [one] = await fetchPostsByIds([p]); el.outerHTML = postCard(one);
+}
+async function cachePages(ids){
+  const missing = [...new Set(ids)].filter(id => id && !pagesCache[id]);
+  if (!missing.length) return;
+  const { data } = await sb.from('pages').select('*').in('id', missing);
+  (data || []).forEach(pg => pagesCache[pg.id] = pg);
+}
+async function fetchPostsByIds(posts){
+  const ids = posts.map(p => p.id);
+  await cacheProfiles(posts.map(p => p.user_id));
+  await cachePages(posts.map(p => p.page_id));
+  const [likes, comments, myLikes, mySaves, pollVotes] = await Promise.all([
+    sb.from('likes').select('post_id').in('post_id', ids),
+    sb.from('comments').select('post_id').in('post_id', ids),
+    sb.from('likes').select('post_id').eq('user_id', me.id).in('post_id', ids),
+    sb.from('saves').select('post_id').eq('user_id', me.id).in('post_id', ids),
+    sb.from('poll_votes').select('*').in('post_id', ids)
+  ]);
+  const lc = {}, cc = {}, pv = {};
+  (likes.data || []).forEach(r => lc[r.post_id] = (lc[r.post_id] || 0) + 1);
+  (comments.data || []).forEach(r => cc[r.post_id] = (cc[r.post_id] || 0) + 1);
+  (pollVotes.data || []).forEach(r => { (pv[r.post_id] = pv[r.post_id] || []).push(r); });
+  const myL = new Set((myLikes.data || []).map(r => r.post_id));
+  const myS = new Set((mySaves.data || []).map(r => r.post_id));
+  posts.forEach(p => { p._likes = lc[p.id] || 0; p._comments = cc[p.id] || 0; p._liked = myL.has(p.id); p._saved = myS.has(p.id); p._votes = pv[p.id] || []; p._myVote = (pv[p.id] || []).find(v => v.user_id === me.id); });
+  return posts;
+}
+async function votePoll(postId, idx){
+  const { data: mine } = await sb.from('poll_votes').select('*').eq('post_id', postId).eq('user_id', me.id).maybeSingle();
+  if (mine) { toast('তুমি ইতিমধ্যে ভোট দিয়েছ'); return; }
+  await sb.from('poll_votes').insert({ post_id: postId, user_id: me.id, option_idx: idx });
+  refreshPost(postId);
+}
+async function openComments(postId){
+  const { data: post } = await sb.from('posts').select('user_id').eq('id', postId).single();
+  const { data: comments } = await sb.from('comments').select('*').eq('post_id', postId).order('created_at');
+  await cacheProfiles((comments || []).map(c => c.user_id));
+  sheet(`<h3>মন্তব্য</h3>
+    <div id="clist">${(comments || []).map(c => { const a = prof(c.user_id); return `<div class="row">${avatar(a, 34, 13)}<div style="flex:1"><b>${esc(a.name)}</b>${badges(a)}${c.audio_url ? `<audio controls src="${esc(c.audio_url)}" style="width:100%;height:34px;margin-top:4px"></audio>` : `<small style="display:block;color:var(--ink2);font-size:13.5px">${esc(c.body)}</small>`}<small>${timeAgo(c.created_at)}</small></div></div>`; }).join('') || '<div class="empty">এখনো কোনো মন্তব্য নেই — প্রথমটা তুমিই করো</div>'}</div>
+    <div style="display:flex;gap:8px;margin-top:12px;align-items:center"><input class="field" style="margin:0;flex:1" id="cinput" placeholder="মন্তব্য লেখো..."><label class="icb" style="cursor:pointer">🎤<input type="file" accept="audio/*" style="display:none" onchange="addVoiceComment('${postId}','${post ? post.user_id : ''}',this)"></label><button class="btn" onclick="addComment('${postId}','${post ? post.user_id : ''}')">পাঠাও</button></div>`);
+  $('#cinput').focus();
+}
+async function addVoiceComment(postId, ownerId, input){
+  const f = input.files[0]; if (!f) return;
+  toast('ভয়েস আপলোড হচ্ছে...');
+  const url = await uploadImage(f);
+  if (!url) { toast('আপলোড হয়নি'); return; }
+  const { error } = await sb.from('comments').insert({ post_id: postId, user_id: me.id, body: '🎤 ভয়েস মন্তব্য', audio_url: url });
+  if (error) { toast('যায়নি'); return; }
+  if (ownerId) notify(ownerId, 'comment', postId);
+  openComments(postId); refreshPost(postId);
+}
+async function addComment(postId, ownerId){
+  const body = $('#cinput').value.trim(); if (!body) return;
+  const { error } = await sb.from('comments').insert({ post_id: postId, user_id: me.id, body });
+  if (error) { toast('মন্তব্য যায়নি'); return; }
+  if (ownerId) notify(ownerId, 'comment', postId);
+  sb.rpc('rpc_award', { p_reason: 'comment' });
+  openComments(postId); refreshPost(postId);
+}
+function postMenu(postId){
+  sheet(`<h3>পোস্টের অপশন</h3><div id="pmenu">লোড হচ্ছে...</div>`);
+  sb.from('posts').select('*').eq('id', postId).single().then(async ({ data: p }) => {
+    if (!p) { closeSheet(); return; }
+    const mine = p.user_id === me.id;
+    const boosted = p.boost_until && new Date(p.boost_until) > new Date();
+    $('#pmenu').innerHTML = `
+      ${mine ? `<button class="menu-item" onclick="editPost('${p.id}')">✏️ পোস্ট এডিট করো</button>
+      <button class="menu-item" onclick="togglePin('${p.id}',${p.pinned ? 'false' : 'true'})">${p.pinned ? '📌 পিন সরাও' : '📌 প্রোফাইলে পিন করো'}</button>
+      <button class="menu-item" onclick="toggleArchive('${p.id}',${p.archived ? 'false' : 'true'})">🗄 ${p.archived ? 'আর্কাইভ থেকে ফেরাও' : 'আর্কাইভ করো'}</button>
+      <button class="menu-item" onclick="speakPost('${p.id}')">🔊 পোস্ট পড়ে শোনাও</button>
+      <button class="menu-item" onclick="translatePost('${p.id}')">🌐 ইংরেজিতে অনুবাদ</button>
+      ${!boosted ? `<button class="menu-item" onclick="boostPost('${p.id}')">🚀 বুস্ট করো (৫০ টোকেন, ২৪ ঘণ্টা)</button>` : '<div class="menu-item">🚀 এই পোস্ট বুস্ট অবস্থায় আছে</div>'}
+      <button class="menu-item" style="color:var(--danger)" onclick="deletePost('${p.id}')">🗑 পোস্ট মুছে ফেলো</button>`
+      : `<button class="menu-item" onclick="reportItem('post','${p.id}')">🚩 রিপোর্ট করো</button>
+         <button class="menu-item" style="color:var(--danger)" onclick="blockUser('${p.user_id}')">🚫 এই ব্যবহারকারীকে ব্লক করো</button>`}
+      <button class="menu-item" onclick="closeSheet()">বন্ধ করো</button>`;
+  });
+}
+async function editPost(postId){
+  const { data: p } = await sb.from('posts').select('*').eq('id', postId).single();
+  sheet(`<h3>পোস্ট এডিট</h3><textarea class="field" id="editBody">${esc(p.body)}</textarea>
+    <button class="btn block" onclick="saveEdit('${postId}')">সংরক্ষণ করো</button>`);
+}
+async function saveEdit(postId){
+  await sb.from('posts').update({ body: $('#editBody').value }).eq('id', postId);
+  closeSheet(); refreshPost(postId); toast('পোস্ট আপডেট হয়েছে');
+}
+async function deletePost(postId){
+  await sb.from('posts').delete().eq('id', postId);
+  closeSheet(); const el = document.getElementById('post-' + postId); if (el) el.remove(); toast('পোস্ট মুছে গেছে');
+}
+async function boostPost(postId){
+  const { error } = await sb.rpc('rpc_spend', { p_item: 'boost', p_target: postId });
+  if (error) { toast('টোকেন যথেষ্ট নেই'); return; }
+  me.tokens -= 50; closeSheet(); refreshPost(postId); toast('পোস্ট ২৪ ঘণ্টার জন্য বুস্ট হয়েছে 🚀');
+}
+async function togglePin(postId, pin){
+  await sb.from('posts').update({ pinned: pin }).eq('id', postId);
+  closeSheet(); toast(pin ? 'পোস্ট পিন করা হয়েছে 📌' : 'পিন সরানো হয়েছে');
+  if (curView === 'profile') renderProfile(me.id); else refreshPost(postId);
+}
+async function toggleArchive(postId, arch){
+  await sb.from('posts').update({ archived: arch }).eq('id', postId);
+  closeSheet(); toast(arch ? 'পোস্ট আর্কাইভ হয়েছে 🗄' : 'পোস্ট ফিরিয়ে আনা হয়েছে');
+  const el = document.getElementById('post-' + postId); if (el) el.remove();
+}
+function speakPost(postId){
+  closeSheet();
+  sb.from('posts').select('body').eq('id', postId).single().then(({ data }) => {
+    if (!data || !data.body) { toast('শোনানোর মতো লেখা নেই'); return; }
+    const u = new SpeechSynthesisUtterance(data.body); u.lang = 'bn-BD';
+    speechSynthesis.cancel(); speechSynthesis.speak(u);
+  });
+}
+async function translatePost(postId){
+  closeSheet();
+  const { data } = await sb.from('posts').select('body').eq('id', postId).single();
+  if (!data || !data.body) { toast('অনুবাদের মতো লেখা নেই'); return; }
+  toast('অনুবাদ হচ্ছে...');
+  try {
+    const r = await fetch('https://api.mymemory.translated.net/get?q=' + encodeURIComponent(data.body.slice(0, 450)) + '&langpair=bn|en');
+    const j = await r.json();
+    const t = j.responseData && j.responseData.translatedText;
+    sheet(`<h3>🌐 English translation</h3><p style="font-size:14.5px;line-height:1.7">${esc(t || 'পাওয়া যায়নি')}</p>`);
+  } catch { toast('অনুবাদ হয়নি — নেট চেক করো'); }
+}
+async function reportItem(type, id){
+  await sb.from('reports').insert({ reporter: me.id, target_type: type, target_id: id, reason: '' });
+  closeSheet(); toast('রিপোর্ট পাঠানো হয়েছে — ধন্যবাদ');
+}
+async function blockUser(uid){
+  await sb.from('blocks').insert({ blocker: me.id, blocked: uid });
+  blockedIds.add(uid); closeSheet(); toast('ব্লক করা হয়েছে'); go(curView === 'feed' ? 'feed' : curView);
+}
+
+/* ---------- COMPOSER ---------- */
+function openComposer(groupId = null, pageId = null){
+  sheet(`<h3>${groupId ? 'গ্রুপে পোস্ট' : (pageId ? 'পেজে পোস্ট' : 'নতুন পোস্ট')}</h3>
+    <textarea class="field" id="postBody" placeholder="মনে কী চলছে, ${esc(me.name.split(' ')[0])}?" oninput="document.getElementById('charCount').textContent = this.value.length + ' অক্ষর'"></textarea>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin:-4px 0 8px"><small id="charCount" style="color:var(--faint)">0 অক্ষর</small><small style="color:var(--faint)">টিপস: #হ্যাশট্যাগ দিলে ট্রেন্ডিংয়ে উঠবে</small></div>
+    <div style="display:flex;gap:8px"><input class="field" style="flex:1" id="postFeeling" placeholder="অনুভূতি (ঐচ্ছিক)"><input class="field" style="flex:1" id="postLoc" placeholder="জায়গা (ঐচ্ছিক)"></div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <select class="field" id="postAudience" style="flex:1">
+        <option value="public">🌍 সবাই দেখবে</option>
+        <option value="friends">👥 শুধু বন্ধুরা</option>
+        <option value="close">💚 কাছের বন্ধুরা</option>
+        <option value="supporters">⭐ ফলোয়াররা</option>
+      </select>
+      <input class="field" type="datetime-local" id="postWhen" style="flex:1" title="পরে প্রকাশ করতে চাইলে সময় দাও">
+    </div>
+    <label style="display:flex;gap:8px;align-items:center;font-size:13.5px;color:var(--mut);margin:4px 0 6px">${I.img} ছবি যোগ করো <input type="file" id="postImg" accept="image/*" style="font-size:12px"></label>
+    <label style="display:flex;gap:8px;align-items:center;font-size:13.5px;color:var(--mut);margin:0 0 6px">🎬 ভিডিও যোগ করো <input type="file" id="postVid" accept="video/*" style="font-size:12px"></label>
+    <label style="display:flex;gap:8px;align-items:center;font-size:13.5px;color:var(--mut);margin:0 0 10px">🖼 কোলাজ বানাও (২-৪টি ছবি) <input type="file" id="postCollage" accept="image/*" multiple style="font-size:12px"></label>
+    <div id="pollBox" style="display:none">
+      <input class="field poll-opt" placeholder="অপশন ১"><input class="field poll-opt" placeholder="অপশন ২">
+      <input class="field poll-opt" placeholder="অপশন ৩ (ঐচ্ছিক)"><input class="field poll-opt" placeholder="অপশন ৪ (ঐচ্ছিক)">
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn ghost" style="flex:1" onclick="document.getElementById('pollBox').style.display='block'">📊 পোল যোগ করো</button>
+      <button class="btn" style="flex:2" onclick="submitPost(${groupId ? `'${groupId}'` : 'null'},${pageId ? `'${pageId}'` : 'null'})">পোস্ট করো</button>
+    </div>`);
+  $('#postBody').focus();
+}
+async function makeCollage(files){
+  const imgs = await Promise.all([...files].slice(0, 4).map(f => new Promise(res => { const im = new Image(); im.onload = () => res(im); im.src = URL.createObjectURL(f); })));
+  const S = 900, half = S / 2;
+  const cv = document.createElement('canvas'); cv.width = S; cv.height = imgs.length <= 2 ? half : S;
+  const ctx = cv.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height);
+  const cells = imgs.length === 1 ? [[0, 0, S, S]] : imgs.length === 2 ? [[0, 0, half, half], [half, 0, half, half]] : [[0, 0, half, half], [half, 0, half, half], [0, half, half, half], [half, half, half, half]];
+  imgs.forEach((im, i) => { const [x, y, w, h] = cells[i]; const sc = Math.max(w / im.width, h / im.height); const dw = im.width * sc, dh = im.height * sc; ctx.drawImage(im, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh); });
+  return new Promise(res => cv.toBlob(b => res(new File([b], 'collage.jpg', { type: 'image/jpeg' })), 'image/jpeg', 0.88));
+}
+async function submitPost(groupId, pageId){
+  const body = $('#postBody').value.trim();
+  const opts = [...document.querySelectorAll('.poll-opt')].map(i => i.value.trim()).filter(Boolean);
+  const file = $('#postImg').files[0];
+  const vidFile = $('#postVid').files[0];
+  const colFiles = $('#postCollage').files;
+  if (!body && !file && !vidFile && !colFiles.length && opts.length < 2) { toast('কিছু লেখো, ছবি দাও বা পোল বানাও'); return; }
+  // simple spam guard: too many links or repeated spam posts
+  const linkCount = (body.match(/https?:\/\//g) || []).length;
+  if (linkCount > 2) { toast('এক পোস্টে ২টার বেশি লিংক দেওয়া যাবে না'); return; }
+  const lastPostAt = +localStorage.getItem('adda-last-post') || 0;
+  if (Date.now() - lastPostAt < 8000) { toast('একটু ধীরে — ৮ সেকেন্ড পর আবার পোস্ট করো'); return; }
+  let image_url = '';
+  if (colFiles.length >= 2) image_url = await uploadImage(await makeCollage(colFiles));
+  else if (file) image_url = await uploadImage(file);
+  let video_url = '';
+  if (vidFile) { toast('ভিডিও আপলোড হচ্ছে...'); video_url = await uploadImage(vidFile); }
+  const poll = opts.length >= 2 ? { options: opts } : null;
+  const whenVal = $('#postWhen').value;
+  const scheduled_at = whenVal ? new Date(whenVal).toISOString() : null;
+  if (scheduled_at && new Date(scheduled_at) <= new Date()) { toast('শিডিউলের সময় ভবিষ্যতে দাও'); return; }
+  const { error } = await sb.from('posts').insert({ user_id: me.id, body, image_url, video_url, feeling: $('#postFeeling').value.trim(), location: $('#postLoc').value.trim(), poll, group_id: groupId, page_id: pageId, audience: $('#postAudience').value, scheduled_at });
+  if (error) { toast('পোস্ট হয়নি, আবার চেষ্টা করো'); return; }
+  localStorage.setItem('adda-last-post', Date.now());
+  sb.rpc('rpc_award', { p_reason: 'post' }).then(({ data }) => { if (typeof data === 'number') { me.tokens = data; const b = document.getElementById('feedTokens'); if (b) b.textContent = '🪙 টোকেন: ' + bn(me.tokens); } });
+  closeSheet(); toast(scheduled_at ? 'পোস্ট শিডিউল হয়েছে ⏰' : 'পোস্ট হয়েছে ✓ (+১৫ টোকেন)');
+  if (groupId) renderGroupDetail(groupId); else if (pageId) renderPageDetail(pageId); else if (curView === 'feed') renderFeed(); else if (curView === 'profile') renderProfile(me.id);
+}
+
+/* ---------- FEED ---------- */
+const DAILY_QUOTES = ['ছোট ছোট ভালো কাজই বড় মানুষ বানায়।','আজকের হাসিটাই কালকের শক্তি।','বন্ধু মানে সেই, যে কষ্টের দিনেও পাশে থাকে।','নিজের গতকালের চেয়ে আজ একটু ভালো হও।','শেখার কোনো বয়স নেই, থামার কোনো কারণ নেই।','ধৈর্য ধরো — ভালো সময় আসবেই।','অন্যের ভালো দেখে খুশি হতে শেখো।'];
+const WEEK_CHALLENGES = ['📸 সপ্তাহের চ্যালেঞ্জ: তোমার এলাকার সেরা ছবি পোস্ট করো — #আমারএলাকা','🍲 সপ্তাহের চ্যালেঞ্জ: প্রিয় খাবারের ছবি পোস্ট করো — #খাবার','📚 সপ্তাহের চ্যালেঞ্জ: পড়া সেরা বইয়ের কথা লেখো — #বই','🌅 সপ্তাহের চ্যালেঞ্জ: সূর্যোদয় বা সূর্যাস্তের ছবি — #আকাশ','✍️ সপ্তাহের চ্যালেঞ্জ: ৪ লাইনের একটা ছোট কবিতা লেখো — #কবিতা'];
+async function specialBanners(){
+  const today = new Date(); const md = String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+  const ids = [...friendIds];
+  await cacheProfiles(ids);
+  let out = '';
+  ids.forEach(id => {
+    const p = profilesCache[id];
+    if (p && p.birthday && p.birthday.slice(5) === md)
+      out += `<div class="card" style="background:linear-gradient(120deg,#fdf2f8,#ede9fe)"><b>🎂 আজ ${esc(p.name)}-এর জন্মদিন!</b><br><small style="color:var(--mut)">শুভেচ্ছা জানিয়ে একটা পোস্ট করো</small><br><button class="btn sm" style="margin-top:8px" onclick="birthdayWish('${p.id}')">শুভেচ্ছা পাঠাও</button></div>`;
+  });
+  (window._friendRows || []).forEach(r => {
+    if (r.status !== 'accepted' || !r.updated_at) return;
+    const d = new Date(r.updated_at);
+    const yrs = today.getFullYear() - d.getFullYear();
+    if (yrs >= 1 && String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') === md) {
+      const fid = r.requester === me.id ? r.addressee : r.requester;
+      out += `<div class="card" style="background:linear-gradient(120deg,#ecfdf5,#eff6ff)"><b>🎉 ${esc((profilesCache[fid] || {}).name || 'বন্ধু')}-এর সাথে ${bn(yrs)} বছর বন্ধুত্ব!</b></div>`;
+    }
+  });
+  const mem = await sb.from('posts').select('id,created_at').eq('user_id', me.id).limit(80);
+  const old = (mem.data || []).find(p => { const d = new Date(p.created_at); return d.getFullYear() < today.getFullYear() && String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') === md; });
+  if (old) out += `<div class="card" style="background:linear-gradient(120deg,#fffbeb,#fef3c7)"><b>🕰 এই দিনে</b> — তোমার পুরনো একটা পোস্ট আজকের দিনে হয়েছিল<br><button class="btn ghost sm" style="margin-top:8px" onclick="openMemory('${old.id}')">পোস্টটা দেখো</button></div>`;
+  const dayIdx = Math.floor(Date.now() / 864e5);
+  out += `<div class="card" style="text-align:center"><div style="font-size:15px">💡 <i>${esc(DAILY_QUOTES[dayIdx % DAILY_QUOTES.length])}</i></div><small style="color:var(--mut)">${esc(WEEK_CHALLENGES[Math.floor(dayIdx / 7) % WEEK_CHALLENGES.length])}</small></div>`;
+  return out;
+}
+function birthdayWish(uid){
+  const p = profilesCache[uid];
+  openComposer();
+  setTimeout(() => { const t = document.getElementById('postBody'); if (t) t.value = `শুভ জন্মদিন ${p ? p.name : ''} 🎂🎉 অনেক অনেক শুভেচ্ছা!`; }, 60);
+}
+async function openMemory(postId){
+  const { data } = await sb.from('posts').select('*').eq('id', postId).single();
+  if (!data) return;
+  sheet(`<h3>🕰 এই দিনে</h3>` + (await fetchPostsByIds([data])).map(postCard).join(''));
+}
+let myStories = [];
+async function renderStoriesRow(){
+  const row = document.getElementById('storiesRow');
+  if (!row) return;
+  const since = new Date(Date.now() - 864e5).toISOString();
+  const { data } = await sb.from('stories').select('*').gt('created_at', since).order('created_at', { ascending: false });
+  const stories = (data || []).filter(s => !blockedIds.has(s.user_id));
+  myStories = stories;
+  await cacheProfiles(stories.map(s => s.user_id));
+  const byUser = {};
+  stories.forEach(s => { (byUser[s.user_id] = byUser[s.user_id] || []).push(s); });
+  const mine = byUser[me.id] || [];
+  let html = `<button class="story" onclick="${mine.length ? `openStory('${me.id}')` : 'openStoryComposer()'}"><span class="ring"><i>${me.avatar_url ? `<img src="${esc(me.avatar_url)}">` : esc(me.name[0] || 'অ')}</i></span>তুমি ${mine.length ? '' : '＋'}</button>`;
+  Object.keys(byUser).filter(uid => uid !== me.id).forEach(uid => {
+    const p = prof(uid);
+    html += `<button class="story" onclick="openStory('${uid}')"><span class="ring"><i>${p.avatar_url ? `<img src="${esc(p.avatar_url)}">` : esc(p.name[0] || '?')}</i></span>${esc(p.name.split(' ')[0])}</button>`;
+  });
+  row.innerHTML = html;
+}
+function openStoryComposer(){
+  sheet(`<h3>📸 নতুন স্টোরি (২৪ ঘণ্টা থাকবে)</h3>
+    <input class="field" id="storyText" placeholder="লেখা (ঐচ্ছিক)">
+    <label style="display:flex;gap:8px;align-items:center;font-size:13.5px;color:var(--mut);margin:6px 0">🖼 ছবি <input type="file" id="storyImg" accept="image/*" style="font-size:12px"></label>
+    <label style="display:flex;gap:8px;align-items:center;font-size:13.5px;color:var(--mut);margin:0 0 12px">🎤 ভয়েস <input type="file" id="storyAud" accept="audio/*" style="font-size:12px"></label>
+    <button class="btn" style="width:100%" onclick="submitStory()">স্টোরি দাও</button>`);
+}
+async function submitStory(){
+  const img = document.getElementById('storyImg').files[0];
+  const aud = document.getElementById('storyAud').files[0];
+  const text = document.getElementById('storyText').value.trim();
+  if (!img && !aud && !text) { toast('ছবি, ভয়েস বা লেখা দাও'); return; }
+  const image_url = img ? await uploadImage(img) : '';
+  const audio_url = aud ? await uploadImage(aud) : '';
+  const { error } = await sb.from('stories').insert({ user_id: me.id, image_url, audio_url, body: text });
+  if (error) { toast('স্টোরি হয়নি'); return; }
+  closeSheet(); toast('স্টোরি দেওয়া হয়েছে ✓');
+  renderStoriesRow();
+}
+function openStory(uid){
+  const list = myStories.filter(s => s.user_id === uid);
+  if (!list.length) return;
+  const p = prof(uid);
+  sheet(`<div style="display:flex;gap:10px;align-items:center;margin-bottom:10px">${avatar(p, 36, 12)}<b>${esc(p.name)}</b><small style="color:var(--faint)">${timeAgo(list[0].created_at)}</small></div>` +
+    list.map(s => `<div style="margin-bottom:12px">
+      ${s.image_url ? `<img src="${esc(s.image_url)}" style="width:100%;border-radius:14px">` : ''}
+      ${s.audio_url ? `<audio controls src="${esc(s.audio_url)}" style="width:100%"></audio>` : ''}
+      ${s.body ? `<p style="font-size:15px;margin:6px 0">${esc(s.body)}</p>` : ''}
+      ${uid === me.id ? `<button class="btn ghost sm" onclick="deleteStory('${s.id}')">🗑 মুছো</button>` : `<button class="btn ghost sm" onclick="closeSheet();openChat('${uid}')">💬 রিপ্লাই দাও</button>`}
+    </div>`).join(''));
+}
+async function deleteStory(id){
+  await sb.from('stories').delete().eq('id', id);
+  closeSheet(); toast('স্টোরি মোছা হয়েছে'); renderStoriesRow();
+}
+async function renderFeed(tagFilter = null){
+  curView = 'feed'; renderShell();
+  view().innerHTML = `<div class="view">
+    <div class="stories" id="storiesRow"></div>
+    <button class="composer" onclick="openComposer()">${avatar(me, 38, 15)}<span class="fake">মনে কী চলছে?</span><span style="color:var(--acc);display:flex">${I.img}</span></button>
+    <div style="display:flex;gap:8px;padding:12px 12px 0">
+      <button class="btn ghost sm" style="flex:1" onclick="go('groups')">👥 গ্রুপ</button>
+      ${localStorage.getItem('adda-kid') === '1' ? '' : `<button class="btn ghost sm" style="flex:1" onclick="go('dating')">💘 মনের মানুষ</button>`}
+      <button class="btn ghost sm" style="flex:1" onclick="go('quiz')">🧠 কুইজ</button>
+    </div>
+    <div style="display:flex;gap:8px;padding:8px 12px 0">
+      <button class="btn ghost sm" style="flex:1" onclick="go('market')">🛍 বাজার</button>
+      <button class="btn ghost sm" style="flex:1" onclick="go('service')">🤝 সেবা বোর্ড</button>
+      <button class="btn ghost sm" style="flex:1" onclick="go('events')">📅 ইভেন্ট</button>
+      <button class="btn ghost sm" style="flex:1" onclick="go('pages')">📄 পেজ</button>
+    </div>
+    ${tagFilter ? `<div style="padding:12px 16px 0;font-size:14px">ট্যাগ: <b>#${esc(tagFilter)}</b> <a href="#" onclick="renderFeed();return false">✕ সব দেখো</a></div>` : ''}
+    <div id="feedBanners" style="padding:12px 12px 0"></div>
+    <div id="feedList"><div class="empty">লোড হচ্ছে...</div></div></div>`;
+  renderStoriesRow();
+  specialBanners().then(b => { const el = document.getElementById('feedBanners'); if (el) el.innerHTML = b; });
+  let posts = await fetchPosts(tagFilter ? { tag: tagFilter } : {});
+  posts.sort((a, b) => feedScore(b) - feedScore(a));
+  const fl = document.getElementById('feedList');
+  if (fl) fl.innerHTML = posts.length ? posts.map(postCard).join('') : `<div class="card empty">এখনো কোনো পোস্ট নেই।<br>প্রথম পোস্টটা তুমিই করো — পাবে ১৫ টোকেন!</div>`;
+}
+function openTag(tag){ curView = 'feed'; renderFeed(tag); }
+
+/* ---------- FRIENDS ---------- */
+let friendsTab = 'suggest';
+async function renderFriends(tab = 'suggest'){
+  curView = 'friends'; friendsTab = tab; renderShell();
+  view().innerHTML = `<div class="view">
+    <div style="padding:14px 16px 0;font-size:18px;font-weight:800">বন্ধুরা</div>
+    <div class="seg">
+      <button class="${tab === 'suggest' ? 'on' : ''}" onclick="renderFriends('suggest')">পরামর্শ</button>
+      <button class="${tab === 'requests' ? 'on' : ''}" onclick="renderFriends('requests')">অনুরোধ</button>
+      <button class="${tab === 'mine' ? 'on' : ''}" onclick="renderFriends('mine')">আমার বন্ধু</button>
+    </div>
+    <div id="friendsBody"><div class="empty">লোড হচ্ছে...</div></div></div>`;
+  const body = $('#friendsBody');
+  if (tab === 'suggest') {
+    const { data: all } = await sb.from('profiles').select('*').neq('id', me.id).limit(60);
+    const { data: rels } = await sb.from('friendships').select('*').or(`requester.eq.${me.id},addressee.eq.${me.id}`);
+    const related = new Set(); (rels || []).forEach(r => { related.add(r.requester); related.add(r.addressee); });
+    const list = (all || []).filter(p => !related.has(p.id) && !blockedIds.has(p.id));
+    body.innerHTML = `<div class="card" style="padding:6px 15px">${list.length ? list.map(p => userRow(p, `<button class="btn sm" onclick="sendFriendReq('${p.id}',this)">বন্ধু যোগ করো</button>`)).join('') : '<div class="empty">আপাতত নতুন কেউ নেই</div>'}</div>`;
+  } else if (tab === 'requests') {
+    const { data: reqs } = await sb.from('friendships').select('*').eq('addressee', me.id).eq('status', 'pending').order('created_at', { ascending: false });
+    await cacheProfiles((reqs || []).map(r => r.requester));
+    body.innerHTML = `<div class="card" style="padding:6px 15px">${(reqs || []).length ? reqs.map(r => { const p = prof(r.requester); return userRow(p, `<button class="btn sm" onclick="respondReq('${r.id}',true,this)">গ্রহণ</button> <button class="btn ghost sm" onclick="respondReq('${r.id}',false,this)">মুছো</button>`); }).join('') : '<div class="empty">কোনো অনুরোধ নেই</div>'}</div>`;
+  } else {
+    await cacheProfiles([...friendIds]);
+    const list = [...friendIds].map(prof);
+    body.innerHTML = `<div class="card" style="padding:6px 15px">${list.length ? list.map(p => userRow(p, `<button class="btn ghost sm" onclick="startChat('${p.id}')">মেসেজ</button>`)).join('') : '<div class="empty">এখনো কোনো বন্ধু নেই — পরামর্শ ট্যাব থেকে যোগ করো</div>'}</div>`;
+  }
+}
+function userRow(p, actionHtml){
+  return `<div class="row"><a href="#" onclick="goProfile('${p.id}');return false">${avatar(p, 46, 17)}</a>
+    <div style="flex:1;min-width:0"><b><a href="#" style="color:var(--ink)" onclick="goProfile('${p.id}');return false">${esc(p.name)}</a>${badges(p)}</b>
+    <small>${p.city ? '📍 ' + esc(p.city) + ' · ' : ''}${p.id === me.id ? 'তুমি' : (friendIds.has(p.id) ? 'বন্ধু' : 'নতুন মানুষ')}</small></div>
+    <div style="display:flex;gap:6px">${actionHtml}</div></div>`;
+}
+async function sendFriendReq(uid, btn){
+  const { error } = await sb.from('friendships').insert({ requester: me.id, addressee: uid });
+  if (error) { toast('পাঠানো যায়নি'); return; }
+  notify(uid, 'friend_request'); btn.textContent = 'পাঠানো হয়েছে ✓'; btn.disabled = true; btn.classList.add('ghost');
+}
+async function respondReq(id, accept, btn){
+  if (accept) {
+    const { data: r } = await sb.from('friendships').update({ status: 'accepted' }).eq('id', id).select().single();
+    if (r) { friendIds.add(r.requester); notify(r.requester, 'friend_accept'); toast('নতুন বন্ধু যোগ হয়েছে 🎉'); }
+  } else await sb.from('friendships').delete().eq('id', id);
+  renderFriends('requests');
+}
+async function unfriend(uid){
+  await sb.from('friendships').delete().or(`and(requester.eq.${me.id},addressee.eq.${uid}),and(requester.eq.${uid},addressee.eq.${me.id})`);
+  friendIds.delete(uid); toast('বন্ধু তালিকা থেকে সরানো হয়েছে'); renderProfile(uid);
+}
+async function toggleFollow(uid, btn){
+  if (followIds.has(uid)) { await sb.from('follows').delete().eq('follower', me.id).eq('following', uid); followIds.delete(uid); }
+  else { await sb.from('follows').insert({ follower: me.id, following: uid }); followIds.add(uid); notify(uid, 'follow'); }
+  renderProfile(uid);
+}
+
+/* ---------- TRENDING ---------- */
+async function renderTrending(){
+  curView = 'trending'; renderShell();
+  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">ট্রেন্ডিং</div>
+    <div class="card" id="trendTags" style="padding:6px 15px"><div class="empty">লোড হচ্ছে...</div></div>
+    <div class="seclabel">জনপ্রিয় পোস্ট</div><div id="trendPosts"></div></div>`;
+  const since = new Date(Date.now() - 7 * 864e5).toISOString();
+  const { data: posts } = await sb.from('posts').select('body').gte('created_at', since).limit(300);
+  const counts = {};
+  (posts || []).forEach(p => { const m = (p.body || '').match(/#([\p{L}\p{N}_]+)/gu) || []; m.forEach(t => counts[t] = (counts[t] || 0) + 1); });
+  const tags = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  $('#trendTags').innerHTML = tags.length ? tags.map(([t, c], i) => `<button class="trend" onclick="openTag('${esc(t.slice(1))}')"><span class="rank ${i < 2 ? 'hot' : ''}">${bn(i + 1)}</span><span style="flex:1"><b>${esc(t)}</b><small>বাংলাদেশে ট্রেন্ডিং · ${bn(c)}টি পোস্ট</small></span><span style="color:var(--faint)">${I.fire.replace('currentColor','')}</span></button>`).join('') : '<div class="empty">এই সপ্তাহে এখনো কোনো হ্যাশট্যাগ ট্রেন্ড হয়নি — পোস্টে #ট্যাগ ব্যবহার করো!</div>';
+  let pop = await fetchPosts({});
+  pop.sort((a, b) => (b._likes * 3 + b._comments * 5) - (a._likes * 3 + a._comments * 5));
+  $('#trendPosts').innerHTML = pop.slice(0, 10).map(postCard).join('') || '<div class="card empty">এখনো পোস্ট নেই</div>';
+}
+
+/* ---------- SEARCH ---------- */
+function renderSearch(){
+  curView = 'search'; renderShell();
+  view().innerHTML = `<div class="view">
+    <div class="searchbar">🔍<input id="q" placeholder="মানুষ, পোস্ট বা গ্রুপ খোঁজো..." oninput="doSearch(this.value)"></div>
+    <div id="searchRes"><div class="empty">নাম, জায়গা বা যেকোনো শব্দ লিখে খোঁজো</div></div></div>`;
+  $('#q').focus();
+}
+let searchTimer = null;
+function doSearch(q){
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(async () => {
+    q = q.trim(); const box = $('#searchRes'); if (!box) return;
+    if (q.length < 2) { box.innerHTML = '<div class="empty">কমপক্ষে ২ অক্ষর লেখো</div>'; return; }
+    const [people, posts, groups] = await Promise.all([
+      sb.from('profiles').select('*').or(`name.ilike.%${q}%,city.ilike.%${q}%`).limit(10),
+      sb.from('posts').select('*').ilike('body', `%${q}%`).is('group_id', null).order('created_at', { ascending: false }).limit(10),
+      sb.from('groups').select('*').ilike('name', `%${q}%`).limit(10)
+    ]);
+    await cacheProfiles((posts.data || []).map(p => p.user_id));
+    const enriched = posts.data ? await fetchPostsByIds(posts.data) : [];
+    box.innerHTML = `
+      ${(people.data || []).length ? `<div class="seclabel">মানুষ</div><div class="card" style="padding:6px 15px">${people.data.map(p => userRow(p, p.id === me.id ? '' : `<button class="btn ghost sm" onclick="goProfile('${p.id}')">প্রোফাইল</button>`)).join('')}</div>` : ''}
+      ${(groups.data || []).length ? `<div class="seclabel">গ্রুপ</div><div class="card" style="padding:6px 15px">${groups.data.map(g => groupRow(g)).join('')}</div>` : ''}
+      ${enriched.length ? `<div class="seclabel">পোস্ট</div>${enriched.map(postCard).join('')}` : ''}
+      ${!(people.data || []).length && !(groups.data || []).length && !enriched.length ? '<div class="empty">কিছু পাওয়া যায়নি</div>' : ''}`;
+  }, 300);
+}
+
+/* ---------- NOTIFICATIONS ---------- */
+const NOTIF_TEXT = { like: 'তোমার পোস্টে লাইক দিয়েছে', comment: 'তোমার পোস্টে মন্তব্য করেছে', friend_request: 'তোমাকে বন্ধুর অনুরোধ পাঠিয়েছে', friend_accept: 'তোমার বন্ধুর অনুরোধ গ্রহণ করেছে', follow: 'তোমাকে ফলো করেছে', gift: 'তোমাকে ১০০ টোকেন উপহার পাঠিয়েছে', match: 'তোমার সাথে ম্যাচ হয়েছে 💘', message: 'তোমাকে মেসেজ পাঠিয়েছে', anon: '🙈 তোমার কাছে একটা বেনামি প্রশ্ন এসেছে' };
+async function renderNotifs(){
+  curView = 'notifs'; renderShell();
+  view().innerHTML = `<div class="view"><div style="padding:14px 16px;font-size:18px;font-weight:800">নোটিফিকেশন</div><div id="notifList"><div class="empty">লোড হচ্ছে...</div></div></div>`;
+  const { data } = await sb.from('notifications').select('*').eq('user_id', me.id).order('created_at', { ascending: false }).limit(40);
+  await cacheProfiles((data || []).map(n => n.actor_id));
+  $('#notifList').innerHTML = (data || []).length ? data.map(n => { const a = prof(n.actor_id); return `<div class="notif ${n.is_read ? '' : 'unread'}">${avatar(a, 42, 16)}<div><p><b>${esc(a.name)}</b> ${NOTIF_TEXT[n.type] || 'নতুন আপডেট'}</p><small>${timeAgo(n.created_at)}</small></div></div>`; }).join('') : '<div class="empty">কোনো নোটিফিকেশন নেই</div>';
+  await sb.from('notifications').update({ is_read: true }).eq('user_id', me.id).eq('is_read', false);
+  unreadNotifs = 0; renderShell();
+}
+
+/* ---------- PROFILE ---------- */
+async function goProfile(uid){ curView = 'profile'; renderProfile(uid); }
+async function renderProfile(uid){
+  curView = 'profile'; renderShell();
+  const { data: p } = await sb.from('profiles').select('*').eq('id', uid).single();
+  if (!p) { view().innerHTML = '<div class="empty">প্রোফাইল পাওয়া যায়নি</div>'; return; }
+  profilesCache[uid] = p; const mine = uid === me.id;
+  if (!mine) sb.from('profile_views').upsert({ viewer: me.id, profile: uid, created_at: new Date().toISOString() }, { onConflict: 'viewer,profile' }).then(() => {});
+  const [friendsRes, postsRes, followersRes] = await Promise.all([
+    sb.from('friendships').select('id').eq('status', 'accepted').or(`requester.eq.${uid},addressee.eq.${uid}`),
+    sb.from('posts').select('id', { count: 'exact', head: true }).eq('user_id', uid),
+    sb.from('follows').select('follower').eq('following', uid)
+  ]);
+  const friendCount = (friendsRes.data || []).length;
+  view().innerHTML = `<div class="view">
+    <div class="cover" ${p.cover_url ? `style="background-image:url('${esc(p.cover_url)}')"` : (p.theme ? `style="background:${(PROFILE_THEMES.find(t => t[0] === p.theme) || [])[2] || ''}"` : '')}></div>
+    <div class="prof">
+      <div class="big">${p.avatar_url ? `<img src="${esc(p.avatar_url)}">` : esc(p.name[0] || '?')}</div>
+      <div style="font-size:20px;font-weight:800">${esc(p.name)}${badges(p)}</div>
+      ${p.username ? `<p style="color:var(--acc);font-size:13px;margin-top:2px">@${esc(p.username)}</p>` : ''}
+      <p style="color:var(--mut);font-size:13px;margin-top:3px">${p.city ? '📍 ' + esc(p.city) + ' · ' : ''}${bn(friendCount)} জন বন্ধু${p.birthday ? ' · 🎂 ' + esc(p.birthday) : ''}</p>
+      <div id="scamLabel"></div>
+      <div style="margin-top:8px;display:flex;gap:8px;justify-content:center">
+        <button class="btn ghost sm" onclick="copyProfileLink('${uid}')">🔗 লিংক কপি</button>
+        <button class="btn ghost sm" onclick="showProfileQR('${uid}')">QR কোড</button>
+        ${mine ? `<button class="btn ghost sm" onclick="renderViewers()">👁 কে দেখল</button>` : ''}
+      </div>
+      ${p.bio ? `<p style="font-size:13.5px;color:var(--ink2);margin-top:7px;line-height:1.6">${esc(p.bio)}</p>` : ''}
+      <div style="margin-top:12px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+      ${mine ? `<button class="btn" onclick="editProfile()">প্রোফাইল এডিট</button>
+        <button class="btn ghost" onclick="go('settings')">⚙️ সেটিংস</button>`
+      : `${friendIds.has(uid) ? `<button class="btn ghost" onclick="unfriend('${uid}')">বন্ধু ✓</button>` : `<button class="btn" onclick="sendFriendReq('${uid}',this)">বন্ধু যোগ করো</button>`}
+        <button class="btn ${followIds.has(uid) ? 'ghost' : ''}" onclick="toggleFollow('${uid}',this)">${followIds.has(uid) ? 'ফলো করছ ✓' : 'ফলো করো'}</button>
+        <button class="btn" onclick="startChat('${uid}')">মেসেজ</button>
+        <button class="btn ghost" onclick="giftTokens('${uid}')">🎁 উপহার (১০০)</button>
+        <button class="btn ghost" onclick="askAnon('${uid}')">🙈 বেনামে প্রশ্ন</button>`}
+      </div></div>
+    <div class="stats"><div><b>${bn(postsRes.count || 0)}</b><small>পোস্ট</small></div><div><b>${bn(friendCount)}</b><small>বন্ধু</small></div><div><b>${bn((followersRes.data || []).length)}</b><small>ফলোয়ার</small></div></div>
+    <div class="seclabel">পোস্টসমূহ</div><div id="profPosts"><div class="empty">লোড হচ্ছে...</div></div></div>`;
+  const posts = await fetchPosts({ authorId: uid });
+  posts.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+  const pp = document.getElementById('profPosts');
+  if (pp) pp.innerHTML = posts.length ? posts.map(postCard).join('') : '<div class="card empty">এখনো কোনো পোস্ট নেই</div>';
+  sb.rpc('report_count', { p_uid: uid }).then(({ data }) => {
+    const el = document.getElementById('scamLabel');
+    if (el && typeof data === 'number' && data >= 3) el.innerHTML = '<span style="display:inline-block;background:#FEF2F2;color:#B91C1C;border:1px solid #FECACA;border-radius:99px;padding:3px 10px;font-size:12px;font-weight:700;margin-top:6px">⚠️ সতর্কতা: এই অ্যাকাউন্টের বিরুদ্ধে একাধিক রিপোর্ট আছে — লেনদেনে সাবধান</span>';
+  });
+}
+function profileLink(uid){
+  const p = profilesCache[uid];
+  return location.origin + location.pathname + (p && p.username ? '?u=' + encodeURIComponent(p.username) : '');
+}
+function copyProfileLink(uid){
+  const link = profileLink(uid);
+  if (!link.includes('?u=')) { toast('আগে প্রোফাইল এডিটে একটা ইউজারনেম সেট করো'); return; }
+  navigator.clipboard.writeText(link).then(() => toast('প্রোফাইল লিংক কপি হয়েছে 🔗')).catch(() => toast(link));
+}
+function showProfileQR(uid){
+  const link = profileLink(uid);
+  sheet(`<h3>QR কোড</h3><div style="text-align:center"><img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(link)}" style="width:200px;height:200px;border-radius:12px" alt="QR"><p style="font-size:12.5px;color:var(--mut);margin-top:8px">${esc(link)}</p></div>`);
+}
+async function renderViewers(){
+  curView = 'viewers'; renderShell();
+  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">👁 প্রোফাইল দর্শক</div><div class="card" id="viewerList" style="padding:6px 15px"><div class="empty">লোড হচ্ছে...</div></div></div>`;
+  const { data } = await sb.from('profile_views').select('*').eq('profile', me.id).order('created_at', { ascending: false }).limit(40);
+  await cacheProfiles((data || []).map(v => v.viewer));
+  const el = document.getElementById('viewerList');
+  if (el) el.innerHTML = (data || []).length ? data.map(v => userRow(prof(v.viewer), `<small style="color:var(--faint)">${timeAgo(v.created_at)}</small>`)).join('') : '<div class="empty">এখনো কেউ তোমার প্রোফাইল দেখেনি</div>';
+}
+async function giftTokens(uid){
+  const { error } = await sb.rpc('rpc_spend', { p_item: 'gift', p_target: uid });
+  if (error) { toast('টোকেন যথেষ্ট নেই (লাগবে ১০০)'); return; }
+  me.tokens -= 100; notify(uid, 'gift'); toast('১০০ টোকেন উপহার পাঠানো হয়েছে 🎁');
+}
+function toggleTheme(){
+  const dark = document.documentElement.classList.toggle('dark');
+  localStorage.setItem('adda-theme', dark ? 'dark' : 'light');
+}
+function editProfile(){
+  sheet(`<h3>প্রোফাইল এডিট</h3>
+    <input class="field" id="epName" value="${esc(me.name)}" placeholder="নাম">
+    <input class="field" id="epUsername" value="${esc(me.username || '')}" placeholder="ইউজারনেম (ইংরেজি ছোট হাতের, যেমন: limon.bd)">
+    <input class="field" id="epCity" value="${esc(me.city || '')}" placeholder="শহর (যেমন: ঢাকা)">
+    <label style="display:block;font-size:13px;color:var(--mut);margin:2px 0 4px">🎂 জন্মদিন <input class="field" type="date" id="epBirthday" value="${esc(me.birthday || '')}" style="margin:0"></label>
+    <input class="field" id="epEmergency" value="${esc(me.emergency || '')}" placeholder="জরুরি যোগাযোগ (শুধু তুমিই দেখবে)">
+    <textarea class="field" id="epBio" placeholder="নিজের সম্পর্কে দু-এক লাইন">${esc(me.bio || '')}</textarea>
+    <label style="display:block;font-size:13.5px;color:var(--mut);margin:2px 0 4px">প্রোফাইল ছবি <input type="file" id="epAvatar" accept="image/*" style="font-size:12px"></label>
+    <label style="display:block;font-size:13.5px;color:var(--mut);margin:6px 0 12px">কভার ছবি <input type="file" id="epCover" accept="image/*" style="font-size:12px"></label>
+    <button class="btn block" onclick="saveProfile()">সংরক্ষণ করো</button>`);
+}
+async function saveProfile(){
+  const uname = $('#epUsername').value.trim().toLowerCase();
+  if (uname && !/^[a-z0-9._]{3,30}$/.test(uname)) { toast('ইউজারনেমে শুধু ইংরেজি ছোট হাতের অক্ষর, সংখ্যা, . আর _ (৩-৩০)'); return; }
+  const upd = { name: $('#epName').value.trim() || me.name, city: $('#epCity').value.trim(), bio: $('#epBio').value.trim(), username: uname || null, birthday: $('#epBirthday').value || null, emergency: $('#epEmergency').value.trim() };
+  const af = $('#epAvatar').files[0]; if (af) upd.avatar_url = await uploadImage(af);
+  const cf = $('#epCover').files[0]; if (cf) upd.cover_url = await uploadImage(cf);
+  const { data, error } = await sb.from('profiles').update(upd).eq('id', me.id).select().single();
+  if (error) { toast(error.message && error.message.includes('username') ? 'এই ইউজারনেম অন্য কেউ নিয়েছে' : 'সংরক্ষণ হয়নি'); return; }
+  me = data; profilesCache[me.id] = me; closeSheet(); toast('প্রোফাইল আপডেট হয়েছে ✓'); renderProfile(me.id);
+}
+async function renderSaved(){
+  curView = 'saved'; renderShell();
+  view().innerHTML = `<div class="view"><div style="padding:14px 16px;font-size:18px;font-weight:800">সেভ করা পোস্ট</div><div id="savedList"><div class="empty">লোড হচ্ছে...</div></div></div>`;
+  const posts = await fetchPosts({ savedOnly: true });
+  $('#savedList').innerHTML = posts.length ? posts.map(postCard).join('') : '<div class="card empty">কোনো সেভ করা পোস্ট নেই</div>';
+}
+
+/* ---------- GROUPS ---------- */
+const GCATS = [['#4F46E5','🎓'],['#059669','⚽'],['#DB2777','🎵'],['#D97706','🍜'],['#0891B2','💻'],['#7C3AED','📚']];
+async function renderGroups(){
+  curView = 'groups'; renderShell();
+  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">গ্রুপ</div>
+    <div style="padding:12px 12px 0"><button class="btn block" onclick="createGroupSheet()">+ নতুন গ্রুপ বানাও</button></div>
+    <div class="card" id="groupList" style="padding:6px 15px"><div class="empty">লোড হচ্ছে...</div></div></div>`;
+  const { data: groups } = await sb.from('groups').select('*').order('created_at', { ascending: false }).limit(60);
+  const { data: members } = await sb.from('group_members').select('group_id');
+  const counts = {}; (members || []).forEach(m => counts[m.group_id] = (counts[m.group_id] || 0) + 1);
+  const { data: mine } = await sb.from('group_members').select('group_id').eq('user_id', me.id);
+  window._myGroups = new Set((mine || []).map(m => m.group_id));
+  $('#groupList').innerHTML = (groups || []).length ? groups.map(g => groupRow(g, counts[g.id] || 0)).join('') : '<div class="empty">এখনো কোনো গ্রুপ নেই — প্রথমটা তুমিই বানাও!</div>';
+}
+function groupRow(g, memberCount){
+  const [col, em] = GCATS[(g.name || '').length % GCATS.length];
+  const joined = window._myGroups && window._myGroups.has(g.id);
+  return `<div class="grp"><span class="gic" style="background:${col}">${em}</span>
+    <div style="flex:1;min-width:0"><b style="font-size:14.5px">${esc(g.name)}</b><small style="display:block;color:var(--faint);font-size:11.5px">${esc(g.category || 'সাধারণ')} · ${memberCount !== undefined ? bn(memberCount) + ' সদস্য' : ''}</small></div>
+    <button class="btn ${joined ? 'ghost' : ''} sm" onclick="openGroup('${g.id}')">${joined ? 'খোলো' : 'যোগ দাও'}</button></div>`;
+}
+function createGroupSheet(){
+  sheet(`<h3>নতুন গ্রুপ</h3>
+    <input class="field" id="gName" placeholder="গ্রুপের নাম">
+    <input class="field" id="gCat" placeholder="বিষয় (যেমন: পড়াশোনা, খেলা, গান)">
+    <textarea class="field" id="gAbout" placeholder="গ্রুপ সম্পর্কে এক লাইন"></textarea>
+    <button class="btn block" onclick="createGroup()">গ্রুপ বানাও</button>`);
+}
+async function createGroup(){
+  const name = $('#gName').value.trim(); if (!name) { toast('গ্রুপের নাম দাও'); return; }
+  const { data: g, error } = await sb.from('groups').insert({ name, category: $('#gCat').value.trim(), about: $('#gAbout').value.trim(), created_by: me.id }).select().single();
+  if (error) { toast('গ্রুপ তৈরি হয়নি'); return; }
+  await sb.from('group_members').insert({ group_id: g.id, user_id: me.id });
+  closeSheet(); toast('গ্রুপ তৈরি হয়েছে 🎉'); openGroup(g.id);
+}
+async function openGroup(gid){
+  const { data: isMember } = await sb.from('group_members').select('group_id').eq('group_id', gid).eq('user_id', me.id).maybeSingle();
+  if (!isMember) {
+    await sb.from('group_members').insert({ group_id: gid, user_id: me.id });
+    toast('গ্রুপে যোগ দিয়েছ ✓');
+  }
+  renderGroupDetail(gid);
+}
+async function renderGroupDetail(gid){
+  curView = 'groups'; renderShell();
+  const { data: g } = await sb.from('groups').select('*').eq('id', gid).single();
+  if (!g) { renderGroups(); return; }
+  const { data: members } = await sb.from('group_members').select('user_id').eq('group_id', gid);
+  view().innerHTML = `<div class="view">
+    <div style="padding:14px 16px 0"><a href="#" onclick="renderGroups();return false" style="font-size:13.5px">← সব গ্রুপ</a>
+    <div style="font-size:20px;font-weight:800;margin-top:6px">${esc(g.name)}</div>
+    <p style="color:var(--mut);font-size:13px;margin-top:2px">${esc(g.category || '')} · ${bn((members || []).length)} সদস্য</p>
+    ${g.about ? `<p style="font-size:13.5px;margin-top:6px;line-height:1.6">${esc(g.about)}</p>` : ''}
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn" style="flex:1" onclick="openComposer('${gid}')">গ্রুপে পোস্ট করো</button>
+      <button class="btn ghost" style="flex:1" onclick="openGroupChat('${gid}')">গ্রুপ চ্যাট</button>
+      <button class="btn ghost" onclick="leaveGroup('${gid}')">ছাড়ো</button>
+    </div></div>
+    <div class="card" style="margin:12px"><b>💰 গ্রুপ তহবিল</b><div id="fundBox" style="margin-top:6px"><small style="color:var(--mut)">লোড হচ্ছে...</small></div>
+      <div style="display:flex;gap:8px;margin-top:8px"><input class="field" type="number" id="fundAmt" placeholder="টোকেনের পরিমাণ" style="margin:0;flex:1" min="1" max="1000"><button class="btn sm" onclick="contributeFund('${gid}')">জমা দাও</button></div>
+      <div id="fundTxns" style="margin-top:8px"></div></div>
+    <div class="seclabel">গ্রুপের পোস্ট</div><div id="groupPosts"><div class="empty">লোড হচ্ছে...</div></div></div>`;
+  const posts = await fetchPosts({ groupId: gid });
+  $('#groupPosts').innerHTML = posts.length ? posts.map(postCard).join('') : '<div class="card empty">এই গ্রুপে এখনো পোস্ট নেই</div>';
+  loadFund(gid);
+}
+async function loadFund(gid){
+  const [{ data: fund }, { data: txns }] = await Promise.all([
+    sb.from('group_funds').select('*').eq('group_id', gid).maybeSingle(),
+    sb.from('group_fund_txns').select('*').eq('group_id', gid).order('created_at', { ascending: false }).limit(6)
+  ]);
+  await cacheProfiles((txns || []).map(t => t.user_id));
+  const fb = document.getElementById('fundBox');
+  if (fb) fb.innerHTML = `<span style="font-size:19px;font-weight:800;color:var(--acc)">${bn(fund ? fund.total : 0)} টোকেন</span> <small style="color:var(--mut)">জমা আছে — সবাই মিলে ভালো কাজে ব্যবহারের জন্য</small>`;
+  const ft = document.getElementById('fundTxns');
+  if (ft) ft.innerHTML = (txns || []).map(t => `<div style="font-size:12.5px;color:var(--mut)">${esc(prof(t.user_id).name)} · +${bn(t.amount)} · ${timeAgo(t.created_at)}</div>`).join('');
+}
+async function contributeFund(gid){
+  const amt = parseInt(document.getElementById('fundAmt').value, 10);
+  if (!amt || amt < 1) { toast('পরিমাণ দাও'); return; }
+  const { error } = await sb.rpc('rpc_contribute', { p_group: gid, p_amount: amt });
+  if (error) { toast('হয়নি — টোকেন কম বা তুমি সদস্য নও'); return; }
+  me.tokens -= amt; toast('তহবিলে জমা হয়েছে 💰'); loadFund(gid);
+}
+async function leaveGroup(gid){
+  await sb.from('group_members').delete().eq('group_id', gid).eq('user_id', me.id);
+  toast('গ্রুপ ছেড়েছ'); renderGroups();
+}
+
+/* ---------- CHAT ---------- */
+async function renderChatList(){
+  curView = 'chat'; renderShell();
+  view().innerHTML = `<div class="view"><div style="padding:14px 16px;font-size:18px;font-weight:800">চ্যাট</div><div id="chatList"><div class="empty">লোড হচ্ছে...</div></div></div>`;
+  const { data: myConvs } = await sb.from('conversation_members').select('conversation_id').eq('user_id', me.id);
+  const ids = (myConvs || []).map(r => r.conversation_id);
+  if (!ids.length) { $('#chatList').innerHTML = '<div class="empty">এখনো কোনো চ্যাট নেই।<br>বন্ধুর প্রোফাইল থেকে "মেসেজ" চাপ দিলেই চ্যাট শুরু হবে।</div>'; return; }
+  const [{ data: convs }, { data: members }, { data: msgs }] = await Promise.all([
+    sb.from('conversations').select('*').in('id', ids),
+    sb.from('conversation_members').select('*').in('conversation_id', ids),
+    sb.from('messages').select('*').in('conversation_id', ids).order('created_at', { ascending: false }).limit(200)
+  ]);
+  await cacheProfiles((members || []).map(m => m.user_id));
+  const groupIds = (convs || []).map(c => c.group_id).filter(Boolean);
+  const groupMap = {};
+  if (groupIds.length) { const { data: gs } = await sb.from('groups').select('*').in('id', groupIds); (gs || []).forEach(g => groupMap[g.id] = g); }
+  const lastMsg = {}; (msgs || []).forEach(m => { if (!lastMsg[m.conversation_id]) lastMsg[m.conversation_id] = m; });
+  const rows = (convs || []).map(c => {
+    const others = (members || []).filter(m => m.conversation_id === c.id && m.user_id !== me.id);
+    const lm = lastMsg[c.id];
+    let title, avHtml;
+    if (c.is_group && c.group_id && groupMap[c.group_id]) { const g = groupMap[c.group_id]; title = g.name + ' (গ্রুপ)'; avHtml = `<span class="av" style="background:#4F46E5;width:47px;height:47px;font-size:17px">👥</span>`; }
+    else if (others.length) { const p = prof(others[0].user_id); title = p.name; avHtml = avatar(p, 47, 17); }
+    else { title = 'চ্যাট'; avHtml = avatar(null, 47, 17); }
+    return { c, title, avHtml, lm };
+  }).sort((a, b) => new Date(b.lm?.created_at || b.c.created_at) - new Date(a.lm?.created_at || a.c.created_at));
+  $('#chatList').innerHTML = rows.map(({ c, title, avHtml, lm }) => `<button class="chatrow" onclick="openChat('${c.id}')"><span class="avw">${avHtml}</span><span style="flex:1;min-width:0"><b>${esc(title)}</b><small>${lm ? esc(lm.body) : 'চ্যাট শুরু করো'}</small></span><small style="color:var(--faint);font-size:11px">${lm ? timeAgo(lm.created_at) : ''}</small></button>`).join('');
+}
+async function findOrCreateDM(uid){
+  const { data: mine } = await sb.from('conversation_members').select('conversation_id').eq('user_id', me.id);
+  const myIds = (mine || []).map(r => r.conversation_id);
+  if (myIds.length) {
+    const { data: theirs } = await sb.from('conversation_members').select('conversation_id').eq('user_id', uid).in('conversation_id', myIds);
+    for (const t of (theirs || [])) {
+      const { data: conv } = await sb.from('conversations').select('*').eq('id', t.conversation_id).single();
+      if (conv && !conv.is_group) return conv.id;
+    }
+  }
+  const newId = crypto.randomUUID();
+  const { error } = await sb.from('conversations').insert({ id: newId, is_group: false });
+  if (error) return null;
+  await sb.from('conversation_members').insert([{ conversation_id: newId, user_id: me.id }, { conversation_id: newId, user_id: uid }]);
+  return newId;
+}
+async function startChat(uid){
+  const id = await findOrCreateDM(uid);
+  if (id) openChat(id); else toast('চ্যাট খোলা যায়নি');
+}
+async function openGroupChat(gid){
+  const { data: existing } = await sb.from('conversations').select('id').eq('group_id', gid).maybeSingle();
+  if (existing) { openChat(existing.id); return; }
+  const newId = crypto.randomUUID();
+  const { error } = await sb.from('conversations').insert({ id: newId, is_group: true, group_id: gid });
+  if (error) { toast('গ্রুপ চ্যাট খোলা যায়নি'); return; }
+  const { data: members } = await sb.from('group_members').select('user_id').eq('group_id', gid);
+  await sb.from('conversation_members').insert((members || []).map(m => ({ conversation_id: newId, user_id: m.user_id })));
+  openChat(newId);
+}
+async function openChat(convId){
+  curView = 'chat'; activeChat = convId; renderShell();
+  const { data: conv } = await sb.from('conversations').select('*').eq('id', convId).single();
+  const { data: members } = await sb.from('conversation_members').select('user_id').eq('conversation_id', convId);
+  await cacheProfiles((members || []).map(m => m.user_id));
+  let title = 'চ্যাট', headAv = '';
+  if (conv && conv.is_group && conv.group_id) {
+    const { data: g } = await sb.from('groups').select('name').eq('id', conv.group_id).single();
+    title = (g ? g.name : 'গ্রুপ') + ' · গ্রুপ চ্যাট'; headAv = `<span class="av" style="background:#4F46E5;width:38px;height:38px;font-size:15px">👥</span>`;
+  } else {
+    const other = (members || []).find(m => m.user_id !== me.id);
+    if (other) { const p = prof(other.user_id); title = p.name; headAv = avatar(p, 38, 15); }
+  }
+  view().innerHTML = `<div class="view">
+    <div style="display:flex;gap:10px;align-items:center;padding:12px 16px;background:var(--card);border-bottom:1px solid var(--line2);position:sticky;top:57px;z-index:5">
+      <button class="icb" style="width:34px;height:34px" onclick="renderChatList()">←</button>${headAv}<b style="font-size:15.5px">${esc(title)}</b></div>
+    <div id="msgList" style="padding:10px 0 4px"><div class="empty">লোড হচ্ছে...</div></div>
+    <div class="chatbar"><button class="icb" onclick="stickerSheet('${convId}')" aria-label="স্টিকার">😊</button><label class="icb" style="cursor:pointer" aria-label="ভয়েস মেসেজ">🎤<input type="file" accept="audio/*" style="display:none" onchange="sendVoiceMsg('${convId}',this)"></label><input id="msgInput" placeholder="মেসেজ লেখো..." onkeydown="if(event.key==='Enter')sendMsg('${convId}')"><button class="send" onclick="sendMsg('${convId}')">${I.send}</button></div></div>`;
+  const { data: msgs } = await sb.from('messages').select('*').eq('conversation_id', convId).order('created_at').limit(200);
+  $('#msgList').innerHTML = (msgs || []).length ? msgs.map(msgHtml).join('') : '<div class="empty">প্রথম মেসেজটা পাঠাও 👋</div>';
+  window.scrollTo(0, document.body.scrollHeight);
+  if (chatChannel) sb.removeChannel(chatChannel);
+  chatChannel = sb.channel('chat-' + convId)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: 'conversation_id=eq.' + convId }, payload => {
+      if (activeChat !== convId) return;
+      const box = $('#msgList'); if (!box) return;
+      if (box.querySelector('.empty')) box.innerHTML = '';
+      box.insertAdjacentHTML('beforeend', msgHtml(payload.new));
+      window.scrollTo(0, document.body.scrollHeight);
+    }).subscribe();
+  const inp = $('#msgInput'); if (inp) inp.focus();
+}
+function msgHtml(m){
+  const mine = m.sender_id === me.id;
+  if (m.body && m.body.startsWith('🎧AUDIO:')) return `<div class="msg ${mine ? 'me' : ''}"><audio controls src="${esc(m.body.slice(8))}" style="max-width:210px;height:36px"></audio><small>${timeAgo(m.created_at)}</small></div>`;
+  const sticker = m.body && [...m.body].length <= 3 && /\p{Extended_Pictographic}/u.test(m.body);
+  if (sticker) return `<div class="msg ${mine ? 'me' : ''}" style="background:none;box-shadow:none;font-size:52px;padding:2px">${esc(m.body)}<small style="font-size:10px">${timeAgo(m.created_at)}</small></div>`;
+  return `<div class="msg ${mine ? 'me' : ''}">${esc(m.body)}<small>${timeAgo(m.created_at)}</small></div>`;
+}
+function stickerSheet(convId){
+  const stickers = ['😂','❤️','😍','👍','🔥','🥰','😎','🤣','😭','🙏','💯','🎉','😴','🤔','👏','🌹'];
+  sheet(`<h3>স্টিকার পাঠাও</h3><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">${stickers.map(s => `<button style="font-size:38px;background:none;border:none;cursor:pointer;padding:6px" onclick="sendSticker('${convId}','${s}')">${s}</button>`).join('')}</div>`);
+}
+async function sendSticker(convId, s){
+  closeSheet();
+  const { error } = await sb.from('messages').insert({ conversation_id: convId, sender_id: me.id, body: s });
+  if (error) toast('যায়নি');
+}
+async function sendVoiceMsg(convId, input){
+  const f = input.files[0]; if (!f) return;
+  toast('ভয়েস আপলোড হচ্ছে...');
+  const url = await uploadImage(f);
+  if (!url) { toast('আপলোড হয়নি'); return; }
+  const { error } = await sb.from('messages').insert({ conversation_id: convId, sender_id: me.id, body: '🎧AUDIO:' + url });
+  if (error) toast('যায়নি');
+}
+async function sendMsg(convId){
+  const inp = $('#msgInput'); const body = inp.value.trim(); if (!body) return;
+  inp.value = '';
+  const { error } = await sb.from('messages').insert({ conversation_id: convId, sender_id: me.id, body });
+  if (error) { toast('মেসেজ যায়নি'); inp.value = body; return; }
+  const { data: members } = await sb.from('conversation_members').select('user_id').eq('conversation_id', convId);
+  (members || []).filter(m => m.user_id !== me.id).forEach(m => notify(m.user_id, 'message', null, convId));
+}
+
+/* ---------- SETTINGS ---------- */
+function toggleLocal(key, label){
+  const on = localStorage.getItem(key) === '1';
+  localStorage.setItem(key, on ? '0' : '1');
+  if (key === 'adda-big') document.documentElement.classList.toggle('big', !on);
+  toast(label + (!on ? ' চালু হয়েছে' : ' বন্ধ হয়েছে'));
+  renderSettings();
+}
+async function renderSettings(){
+  curView = 'settings'; renderShell();
+  const { data: fresh } = await sb.from('profiles').select('tokens').eq('id', me.id).single();
+  if (fresh) me.tokens = fresh.tokens;
+  const tg = (key, label) => `<button class="menu-item" onclick="toggleLocal('${key}','${label}')">${label}<span style="margin-left:auto" class="pill">${localStorage.getItem(key) === '1' ? 'চালু' : 'বন্ধ'}</span></button>`;
+  view().innerHTML = `<div class="view">
+    <div style="padding:14px 16px 0;font-size:18px;font-weight:800">সেটিংস</div>
+    <div class="seclabel">আমার জিনিস</div>
+    <div class="card" style="padding:6px 15px">
+      <button class="menu-item" onclick="editProfile()">✏️ প্রোফাইল এডিট</button>
+      <button class="menu-item" onclick="go('tokens')">🪙 টোকেন ওয়ালেট <span style="margin-left:auto;font-weight:800;color:var(--acc)">${bn(me.tokens)}</span></button>
+      <button class="menu-item" onclick="renderTokens()">🔥 লগইন স্ট্রিক <span style="margin-left:auto;font-weight:800">${bn(me.login_streak || 0)} দিন</span></button>
+      <button class="menu-item" onclick="go('saved')">🔖 সেভ করা পোস্ট</button>
+      <button class="menu-item" onclick="go('archived')">🗄 আর্কাইভ করা পোস্ট</button>
+      <button class="menu-item" onclick="renderViewers()">👁 প্রোফাইল দর্শক</button>
+      <button class="menu-item" onclick="go('albums')">🖼 আমার অ্যালবাম</button>
+      <button class="menu-item" onclick="go('closefriends')">💚 কাছের বন্ধুরা</button>
+      <button class="menu-item" onclick="go('anon')">🙈 বেনামি প্রশ্নের ইনবক্স</button>
+      <button class="menu-item" onclick="downloadMyData()">📥 আমার ডেটা ডাউনলোড</button>
+    </div>
+    <div class="seclabel">মজা ও শেখা</div>
+    <div class="card" style="padding:6px 15px">
+      <button class="menu-item" onclick="go('quiz')">🧠 আজকের কুইজ</button>
+      <button class="menu-item" onclick="go('leaderboard')">🏆 লিডারবোর্ড</button>
+      <button class="menu-item" onclick="go('achieve')">🎖 আমার অর্জন</button>
+      <button class="menu-item" onclick="go('creator')">📊 ক্রিয়েটর ড্যাশবোর্ড</button>
+      <button class="menu-item" onclick="go('habits')">🌱 অভ্যাস ট্র্যাকার</button>
+      <button class="menu-item" onclick="go('pets')">🐾 পোষা প্রাণী</button>
+      <button class="menu-item" onclick="go('videos')">🎬 ভিডিও</button>
+      <button class="menu-item" onclick="go('themes')">🎨 প্রোফাইল থিম</button>
+    </div>
+    <div class="seclabel">কমিউনিটি</div>
+    <div class="card" style="padding:6px 15px">
+      <button class="menu-item" onclick="go('groups')">👥 গ্রুপ</button>
+      <button class="menu-item" onclick="go('pages')">📄 পেজ</button>
+      <button class="menu-item" onclick="go('events')">📅 ইভেন্ট</button>
+      <button class="menu-item" onclick="go('market')">🛍 আড্ডা বাজার</button>
+      <button class="menu-item" onclick="go('service')">🤝 সেবা বোর্ড (রক্ত · হারানো · চাকরি)</button>
+      <button class="menu-item" onclick="go('gov')">🏛 সরকারি সেবা ও কর্নার</button>
+      ${localStorage.getItem('adda-kid') === '1' ? '' : `<button class="menu-item" onclick="go('dating')">💘 মনের মানুষ</button>`}
+    </div>
+    <div class="seclabel">সুবিধা ও নিরাপত্তা</div>
+    <div class="card" style="padding:6px 15px">
+      <button class="menu-item" onclick="toggleTheme();toast('থিম বদলানো হয়েছে')">🌙 ডার্ক / লাইট থিম</button>
+      ${tg('adda-big', '🔠 সহজ মোড (বড় লেখা)')}
+      ${tg('adda-saver', '📶 ডেটা সেভার মোড (ছবি চাপ দিলে লোড)')}
+      ${tg('adda-kid', '🧒 কিড মোড (ডেটিং লুকানো)')}
+      <button class="menu-item" onclick="toggleLang()">🌐 ভাষা: ${localStorage.getItem('adda-lang') === 'en' ? 'English (nav)' : 'বাংলা'}</button>
+      <button class="menu-item" style="color:var(--danger)" onclick="doLogout()">🚪 লগ আউট</button>
+    </div>
+    <p style="text-align:center;color:var(--faint);font-size:11.5px;padding:16px 0 4px">আড্ডাBook · LIMON Labs</p></div>`;
+}
+function toggleLang(){
+  const en = localStorage.getItem('adda-lang') === 'en';
+  localStorage.setItem('adda-lang', en ? 'bn' : 'en');
+  toast(en ? 'ভাষা: বাংলা' : 'Language: English (navigation)');
+  renderSettings(); renderShell();
+}
+
+/* ---------- TOKENS ---------- */
+const REASONS = { welcome: 'স্বাগত বোনাস 🎉', login: 'দৈনিক লগইন বোনাস', post: 'পোস্ট করার পুরস্কার', comment: 'মন্তব্যের পুরস্কার', invite: 'বন্ধু আমন্ত্রণের পুরস্কার', quiz: 'কুইজ পুরস্কার', boost: 'পোস্ট বুস্ট', gift: 'উপহার পাঠিয়েছ', gift_received: 'উপহার পেয়েছ 🎁', badge: 'প্রিমিয়াম ব্যাজ', fund: 'গ্রুপ তহবিলে জমা', theme: 'প্রোফাইল থিম' };
+async function renderTokens(){
+  curView = 'tokens'; renderShell();
+  const { data: fresh } = await sb.from('profiles').select('*').eq('id', me.id).single();
+  if (fresh) { me = fresh; profilesCache[me.id] = me; }
+  view().innerHTML = `<div class="view">
+    <div class="wallet"><small>তোমার ব্যালেন্স</small><div class="bal"><span class="coin">অ</span>${bn(me.tokens)} টোকেন</div>
+    <small>প্রতিদিন লগইন, পোস্ট আর মন্তব্য করে টোকেন আয় করো</small><br><small>🔥 লগইন স্ট্রিক: ${bn(me.login_streak || 0)} দিন</small></div>
+    <div class="seclabel">টোকেন আয় করো</div>
+    <div class="card" style="padding:6px 15px">
+      <div class="earn"><span class="eic">📅</span><div><b>প্রতিদিন লগইন</b><small>প্রতিদিন একবার</small></div><span class="plus">+১০</span></div>
+      <div class="earn"><span class="eic">📝</span><div><b>পোস্ট করো</b><small>দিনে সর্বোচ্চ ৫টি পোস্টে</small></div><span class="plus">+১৫</span></div>
+      <div class="earn"><span class="eic">💬</span><div><b>মন্তব্য করো</b><small>দিনে সর্বোচ্চ ১০টি</small></div><span class="plus">+৩</span></div>
+      <div class="earn"><span class="eic">🎉</span><div><b>স্বাগত বোনাস</b><small>নতুন অ্যাকাউন্টে একবার</small></div><span class="plus">+১০০</span></div>
+    </div>
+    <div class="seclabel">টোকেন খরচ করো</div>
+    <div class="card" style="padding:6px 15px">
+      <div class="earn"><span class="eic">🚀</span><div><b>পোস্ট বুস্ট</b><small>নিজের পোস্টের ⋯ মেনু থেকে, ২৪ ঘণ্টা সবার উপরে</small></div><span class="minus">৫০</span></div>
+      <div class="earn"><span class="eic">🎁</span><div><b>বন্ধুকে উপহার</b><small>বন্ধুর প্রোফাইল থেকে পাঠাও</small></div><span class="minus">১০০</span></div>
+      <div class="earn"><span class="eic">◆</span><div><b>প্রিমিয়াম ব্যাজ</b><small>নামের পাশে সোনালি ব্যাজ ${me.badge ? '— তোমার আছে ✓' : ''}</small></div>${me.badge ? '' : `<button class="btn sm" onclick="buyBadge()">২০০ দিয়ে কেনো</button>`}</div>
+    </div>
+    <div class="seclabel">ইতিহাস</div>
+    <div class="card" id="txnList" style="padding:6px 15px"><div class="empty">লোড হচ্ছে...</div></div></div>`;
+  const { data: txns } = await sb.from('token_txns').select('*').eq('user_id', me.id).order('created_at', { ascending: false }).limit(30);
+  $('#txnList').innerHTML = (txns || []).length ? txns.map(t => `<div class="earn"><div><b style="font-size:13.5px">${REASONS[t.reason] || t.reason}</b><small>${timeAgo(t.created_at)}</small></div><span class="${t.amount >= 0 ? 'plus' : 'minus'}">${t.amount >= 0 ? '+' : ''}${bn(t.amount)}</span></div>`).join('') : '<div class="empty">এখনো কোনো লেনদেন নেই</div>';
+}
+async function buyBadge(){
+  const { error } = await sb.rpc('rpc_spend', { p_item: 'badge', p_target: null });
+  if (error) { toast('টোকেন যথেষ্ট নেই (লাগবে ২০০)'); return; }
+  me.badge = true; me.tokens -= 200; toast('অভিনন্দন! প্রিমিয়াম ব্যাজ পেয়ে গেছ ◆'); renderTokens();
+}
+
+/* ---------- DATING : মনের মানুষ ---------- */
+const INTERESTS = ['গান','সিনেমা','ক্রিকেট','বই পড়া','ভ্রমণ','রান্না','ফটোগ্রাফি','কবিতা','খেলাধুলা','প্রযুক্তি'];
+let deck = [], deckIdx = 0;
+async function renderDating(){
+  if (localStorage.getItem('adda-kid') === '1') { toast('কিড মোডে এই অংশ বন্ধ আছে'); go('feed'); return; }
+  curView = 'dating'; renderShell();
+  const { data: dp } = await sb.from('dating_profiles').select('*').eq('user_id', me.id).maybeSingle();
+  if (!dp || !dp.active) {
+    view().innerHTML = `<div class="view">
+      <div class="card" style="text-align:center;padding:24px 18px">
+        <div style="font-size:40px">💘</div>
+        <div style="font-size:19px;font-weight:800;margin:6px 0">মনের মানুষ</div>
+        <p style="color:var(--mut);font-size:13.5px;line-height:1.7">আলাদা একটা জায়গা, যেখানে মনের মিল খুঁজে পাবে।<br>শুধু ১৮+ দের জন্য · সম্পূর্ণ ঐচ্ছিক · ম্যাচ হলেই চ্যাট</p>
+      </div>
+      <div class="card"><h3 style="margin-bottom:12px;font-size:15.5px">তোমার ডেটিং প্রোফাইল</h3>
+        <input class="field" id="dAge" type="number" min="18" max="80" placeholder="বয়স (১৮ বা তার বেশি)">
+        <select class="field" id="dGender"><option value="">তুমি —</option><option>ছেলে</option><option>মেয়ে</option><option>অন্যান্য</option></select>
+        <select class="field" id="dLooking"><option value="">খুঁজছ —</option><option>ছেলে</option><option>মেয়ে</option><option>সবাইকে</option></select>
+        <div style="font-size:13px;color:var(--mut);margin:2px 0 8px">পছন্দ বেছে নাও (ম্যাচ % এগুলো দিয়েই হিসাব হয়):</div>
+        <div class="chiprow2" style="padding:0 0 10px">${INTERESTS.map(i => `<label class="ichip" style="cursor:pointer"><input type="checkbox" class="dInt" value="${i}" style="accent-color:#DB2777"> ${i}</label>`).join('')}</div>
+        <textarea class="field" id="dBio" placeholder="নিজের সম্পর্কে দু-এক লাইন"></textarea>
+        <button class="btn block" onclick="saveDatingProfile()">প্রোফাইল চালু করো</button>
+      </div>
+      <div class="safe" style="margin-top:12px">🛡 নিরাপত্তা: কেউ বিরক্ত করলে সাথে সাথে ব্লক/রিপোর্ট করো। কারো সাথে দেখা করতে গেলে পাবলিক জায়গা বেছে নাও, বন্ধুকে জানিয়ে যাও। ব্যক্তিগত তথ্য (ঠিকানা, পাসওয়ার্ড) কাউকে দিও না।</div></div>`;
+    return;
+  }
+  window._myDating = dp;
+  view().innerHTML = `<div class="view">
+    <div style="padding:14px 16px 0;display:flex;align-items:center"><span style="font-size:18px;font-weight:800">মনের মানুষ 💘</span>
+    <button class="btn ghost sm" style="margin-left:auto" onclick="datingSettings()">আমার প্রোফাইল</button></div>
+    <div id="deckBox"><div class="empty">লোড হচ্ছে...</div></div>
+    <div class="seclabel">তোমার ম্যাচ</div><div class="card" id="matchList" style="padding:6px 15px"><div class="empty">লোড হচ্ছে...</div></div>
+    <div class="safe" style="margin-top:12px">🛡 ম্যাচ ছাড়া কেউ তোমাকে মেসেজ পাঠাতে পারবে না। বিরক্তিকর কাউকে ব্লক করো — সে আর তোমাকে দেখতে পাবে না।</div></div>`;
+  const [{ data: all }, { data: myLikes }] = await Promise.all([
+    sb.from('dating_profiles').select('*').eq('active', true).neq('user_id', me.id).limit(60),
+    sb.from('dating_likes').select('liked').eq('liker', me.id)
+  ]);
+  const likedSet = new Set((myLikes || []).map(r => r.liked));
+  const passed = new Set(JSON.parse(localStorage.getItem('adda-passed') || '[]'));
+  let cands = (all || []).filter(d => !likedSet.has(d.user_id) && !passed.has(d.user_id) && !blockedIds.has(d.user_id));
+  if (dp.looking_for && dp.looking_for !== 'সবাইকে') cands = cands.filter(d => d.gender === dp.looking_for);
+  await cacheProfiles(cands.map(d => d.user_id));
+  deck = cands.map(d => {
+    const shared = (d.interests || []).filter(i => (dp.interests || []).includes(i)).length;
+    const base = Math.max((d.interests || []).length, (dp.interests || []).length, 1);
+    return { d, match: Math.min(98, 55 + Math.round(shared / base * 45)) };
+  }).sort((a, b) => b.match - a.match);
+  deckIdx = 0; showCard();
+  const { data: likesOnMe } = await sb.from('dating_likes').select('liker').eq('liked', me.id);
+  const onMe = new Set((likesOnMe || []).map(r => r.liker));
+  const matches = [...likedSet].filter(id => onMe.has(id));
+  await cacheProfiles(matches);
+  $('#matchList').innerHTML = matches.length ? matches.map(id => { const p = prof(id); return userRow(p, `<button class="btn sm" onclick="startChat('${id}')">মেসেজ 💘</button>`); }).join('') : '<div class="empty">এখনো ম্যাচ হয়নি — পছন্দের প্রোফাইলে ❤ দাও</div>';
+}
+function showCard(){
+  const box = $('#deckBox'); if (!box) return;
+  if (deckIdx >= deck.length) { box.innerHTML = '<div class="card empty">আপাতত আর কেউ নেই।<br>পরে আবার দেখো — নতুন মানুষ যোগ দিলে এখানে আসবে।</div>'; return; }
+  const { d, match } = deck[deckIdx]; const p = prof(d.user_id);
+  const photo = d.photo_url || p.avatar_url;
+  box.innerHTML = `<div class="dcard">
+    <div class="dphoto" ${photo ? `style="background-image:url('${esc(photo)}')"` : ''}>
+      ${photo ? '' : `<span class="face">${esc(p.name[0] || '?')}</span>`}
+      <span class="matchp">${bn(match)}% ম্যাচ</span>
+      <div class="dinfo"><b>${esc(p.name)}, ${bn(d.age)}</b>${badges(p)}<div style="font-size:12.5px;opacity:.92">${p.city ? '📍 ' + esc(p.city) + ' · ' : ''}এলাকার কাছাকাছি</div></div>
+    </div>
+    <div class="chiprow2">${(d.interests || []).map(i => `<span class="ichip">${esc(i)}</span>`).join('')}</div>
+    ${d.bio ? `<p class="dbio">${esc(d.bio)}</p>` : ''}
+    <div class="dacts">
+      <button class="dbtn" onclick="passCard()" aria-label="পাস">✕</button>
+      <button class="dbtn super" onclick="likeCard(true)" aria-label="সুপার লাইক">★</button>
+      <button class="dbtn like" onclick="likeCard(false)" aria-label="লাইক">❤</button>
+    </div>
+    <div style="text-align:center;padding-bottom:12px"><a href="#" onclick="datingCardMenu('${d.user_id}');return false" style="font-size:12.5px;color:var(--faint)">রিপোর্ট / ব্লক</a></div></div>`;
+}
+function passCard(){
+  const { d } = deck[deckIdx];
+  const passed = JSON.parse(localStorage.getItem('adda-passed') || '[]'); passed.push(d.user_id);
+  localStorage.setItem('adda-passed', JSON.stringify(passed));
+  deckIdx++; showCard();
+}
+async function likeCard(isSuper){
+  const { d } = deck[deckIdx];
+  await sb.from('dating_likes').insert({ liker: me.id, liked: d.user_id, is_super: isSuper });
+  const { data: back } = await sb.from('dating_likes').select('liker').eq('liker', d.user_id).eq('liked', me.id).maybeSingle();
+  if (back) { notify(d.user_id, 'match'); toast('ম্যাচ হয়েছে! 💘 এখন চ্যাট করতে পারো'); }
+  else toast(isSuper ? 'সুপার লাইক পাঠানো হয়েছে ★' : 'লাইক পাঠানো হয়েছে ❤');
+  deckIdx++; showCard();
+  setTimeout(() => { const ml = $('#matchList'); if (ml) renderDating(); }, 400);
+}
+function datingCardMenu(uid){
+  sheet(`<h3>নিরাপত্তা</h3>
+    <button class="menu-item" onclick="reportItem('dating','${uid}')">🚩 এই প্রোফাইল রিপোর্ট করো</button>
+    <button class="menu-item" style="color:var(--danger)" onclick="blockUser('${uid}')">🚫 ব্লক করো</button>
+    <button class="menu-item" onclick="closeSheet()">বন্ধ করো</button>`);
+}
+async function saveDatingProfile(){
+  const age = parseInt($('#dAge').value, 10);
+  if (!age || age < 18) { toast('ডেটিং শুধু ১৮ বছর বা তার বেশি বয়সীদের জন্য'); return; }
+  const interests = [...document.querySelectorAll('.dInt:checked')].map(c => c.value);
+  const { error } = await sb.from('dating_profiles').upsert({ user_id: me.id, age, gender: $('#dGender').value, looking_for: $('#dLooking').value, interests, bio: $('#dBio').value.trim(), photo_url: me.avatar_url || '', active: true });
+  if (error) { toast('প্রোফাইল তৈরি হয়নি'); return; }
+  toast('ডেটিং প্রোফাইল চালু হয়েছে 💘'); renderDating();
+}
+function datingSettings(){
+  const dp = window._myDating;
+  sheet(`<h3>আমার ডেটিং প্রোফাইল</h3>
+    <p style="font-size:13.5px;color:var(--mut);line-height:1.7">বয়স: ${bn(dp.age)} · ${esc(dp.gender || '')} · খুঁজছ: ${esc(dp.looking_for || '')}<br>পছন্দ: ${(dp.interests || []).join(', ') || '—'}<br>${esc(dp.bio || '')}</p>
+    <button class="btn block" style="margin-top:12px;background:var(--danger);box-shadow:none" onclick="deactivateDating()">ডেটিং বন্ধ করো</button>
+    <button class="menu-item" onclick="closeSheet()">বন্ধ করো</button>`);
+}
+async function deactivateDating(){
+  await sb.from('dating_profiles').update({ active: false }).eq('user_id', me.id);
+  closeSheet(); toast('ডেটিং প্রোফাইল বন্ধ করা হয়েছে'); renderDating();
+}
