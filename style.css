@@ -220,3 +220,11 @@ html.dark .annbar{background:#2A1A08;color:#FDBA74}
 .quickbtn:active{transform:scale(1.25)}
 .chatbar{gap:7px}
 .chatbar input{min-width:0}
+
+/* chat thread: full-height column — composer pinned to the bottom, messages scroll inside */
+.chatview{display:flex;flex-direction:column;height:calc(100dvh - 57px - 94px);padding-bottom:0}
+.chatview .chatbar{position:static;flex:none}
+#msgScroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0}
+
+/* composer expands while typing (Messenger-style): optional buttons collapse */
+.chatbar:focus-within .opt{display:none}

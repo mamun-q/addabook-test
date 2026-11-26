@@ -2466,20 +2466,20 @@ async function openChat(convId){
   if (conv && conv.is_group && conv.group_id) {
     const { data: g } = await sb.from('groups').select('*').eq('id', conv.group_id).single();
     chatMeta.group = g || null;
-    title = (g ? g.name : 'গ্রুপ') + ' · গ্রুপ চ্যাট'; headAv = `<span class="av" style="background:#4F46E5;width:38px;height:38px;font-size:15px">${ic('users', 18)}</span>`;
+    title = g ? g.name : 'গ্রুপ চ্যাট'; headAv = `<span class="av" style="background:#4F46E5;width:38px;height:38px;font-size:15px">${ic('users', 18)}</span>`;
   } else if (otherRow) {
     const p = prof(otherRow.user_id); title = otherRow.nickname || p.name; headAv = avatar(p, 38, 15);
   }
   const th = conv ? chatTheme(conv.theme) : null;
-  view().innerHTML = `<div class="view" ${th ? `style="--cgrad:linear-gradient(135deg,${th[1]},${th[2]})"` : ''}>
+  view().innerHTML = `<div class="view chatview" ${th ? `style="--cgrad:linear-gradient(135deg,${th[1]},${th[2]})"` : ''}>
     <div style="display:flex;gap:10px;align-items:center;padding:12px 16px;background:${th ? `linear-gradient(90deg,${th[1]}30,${th[2]}30)` : 'var(--card)'};border-bottom:1px solid var(--line2);position:sticky;top:57px;z-index:5">
       <button class="icb" style="width:34px;height:34px" onclick="renderChatList()">←</button>${headAv}<b style="font-size:15.5px;flex:1;min-width:0">${esc(title)}</b><button class="icb" style="width:34px;height:34px" onclick="chatSearchSheet()" aria-label="চ্যাটে খোঁজো">${ic('search', 17)}</button><button class="icb" style="width:34px;height:34px" onclick="chatInfoSheet()" aria-label="চ্যাটের তথ্য">${ic('dots', 18)}</button></div>
     ${conv && conv.announcement ? `<div class="annbar">${ic('pin', 13)}<span class="usercontent" style="flex:1;min-width:0">${esc(conv.announcement)}</span></div>` : ''}
     ${isReq ? `<div class="annbar" id="reqBar" style="background:#EEF2FF">${ic('msg', 14)}<span style="flex:1;min-width:0"><b>${esc(prof(otherRow.user_id).name)}</b> তোমাকে মেসেজ পাঠাতে চায়<br><small style="color:var(--mut)">গ্রহণ করলে চ্যাটটি মূল লিস্টে যাবে</small></span><button class="btn sm" onclick="acceptRequest('${convId}')">গ্রহণ করো</button><button class="btn ghost sm" onclick="deleteRequest('${convId}')">মুছো</button><button class="btn ghost sm" style="color:var(--danger)" onclick="blockRequest('${otherRow.user_id}','${convId}')">ব্লক</button></div>` : ''}
     <div id="typingLine" style="display:none;padding:5px 16px;font-size:12px;color:var(--mut);background:var(--card);border-bottom:1px solid var(--line2)"></div>
-    <div ${th ? `style="background:linear-gradient(165deg,${th[1]}24,${th[2]}24)"` : ''}><div id="msgList" style="padding:10px 0 4px"><div class="empty">লোড হচ্ছে...</div></div></div>
+    <div id="msgScroll" ${th ? `style="background:linear-gradient(165deg,${th[1]}24,${th[2]}24)"` : ''}><div id="msgList" style="padding:10px 0 4px"><div class="empty">লোড হচ্ছে...</div></div></div>
     <div id="replyBar"></div>
-    <div class="chatbar"><button class="icb" onclick="chatPollSheet()" aria-label="পোল">${ic('chart', 18)}</button><button class="icb" onclick="stickerSheet('${convId}')" aria-label="স্টিকার">${I.smile}</button><label class="icb" style="cursor:pointer" aria-label="ফাইল পাঠাও">${ic('clip')}<input type="file" style="display:none" onchange="sendFileMsg('${convId}',this)"></label><label class="icb" style="cursor:pointer" aria-label="ভয়েস মেসেজ">${I.mic}<input type="file" accept="audio/*" style="display:none" onchange="sendVoiceMsg('${convId}',this)"></label><input id="msgInput" placeholder="মেসেজ লেখো..." oninput="onMsgInput()" onkeydown="if(event.key==='Enter')sendMsg('${convId}')"><button class="quickbtn" onclick="sendQuickEmoji('${convId}')" aria-label="কুইক রিঅ্যাকশন">${esc((chatMeta.myRow && chatMeta.myRow.quick_emoji) || '❤️')}</button><button class="send" onclick="sendMsg('${convId}')">${ic('send', 18)}</button></div></div>`;
+    <div class="chatbar"><button class="icb opt" onclick="chatPollSheet()" aria-label="পোল">${ic('chart', 18)}</button><button class="icb opt" onclick="stickerSheet('${convId}')" aria-label="স্টিকার">${I.smile}</button><label class="icb" style="cursor:pointer" aria-label="ফাইল পাঠাও">${ic('clip')}<input type="file" style="display:none" onchange="sendFileMsg('${convId}',this)"></label><label class="icb" style="cursor:pointer" aria-label="ভয়েস মেসেজ">${I.mic}<input type="file" accept="audio/*" style="display:none" onchange="sendVoiceMsg('${convId}',this)"></label><input id="msgInput" placeholder="মেসেজ লেখো..." oninput="onMsgInput()" onkeydown="if(event.key==='Enter')sendMsg('${convId}')"><button class="quickbtn" onclick="sendQuickEmoji('${convId}')" aria-label="কুইক রিঅ্যাকশন">${esc((chatMeta.myRow && chatMeta.myRow.quick_emoji) || '❤️')}</button><button class="send" onclick="sendMsg('${convId}')">${ic('send', 18)}</button></div></div>`;
   if (!me.hide_reads && !isReq) {
     const nowIso = new Date().toISOString();
     sb.from('conversation_members').update({ last_read_at: nowIso }).eq('conversation_id', convId).eq('user_id', me.id).then(() => {});
@@ -2504,7 +2504,7 @@ async function openChat(convId){
       if (box.querySelector('.empty')) { renderMsgList(); return; }
       const seen = box.querySelector('.seenlbl'); if (seen) seen.remove();
       box.insertAdjacentHTML('beforeend', msgHtml(m));
-      window.scrollTo(0, document.body.scrollHeight);
+      scrollChatBottom();
     })
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages', filter: 'conversation_id=eq.' + convId }, payload => {
       if (activeChat !== convId) return;
@@ -2588,8 +2588,9 @@ function renderMsgList(scroll = true){
   html += list.length ? list.map(msgHtml).join('') : '<div class="empty">প্রথম মেসেজটা পাঠাও 👋</div>';
   html += seenHtml();
   box.innerHTML = html;
-  if (scroll) window.scrollTo(0, document.body.scrollHeight);
+  if (scroll) scrollChatBottom();
 }
+function scrollChatBottom(){ const sc = document.getElementById('msgScroll'); if (sc) sc.scrollTop = sc.scrollHeight; else window.scrollTo(0, document.body.scrollHeight); }
 function pollCardHtml(m, poll){
   const v = chatPollVotes[m.id] || { counts: {}, mine: null, total: 0 };
   const total = v.total || 0;
