@@ -1249,6 +1249,8 @@ async function renderProfile(uid){
       <div class="big">${p.avatar_url ? `<img src="${esc(p.avatar_url)}">` : esc(p.name[0] || '?')}</div>
       <div style="font-size:20px;font-weight:800">${esc(p.name)}${badges(p)}</div>
       ${p.username ? `<p style="color:var(--acc);font-size:13px;margin-top:2px">@${esc(p.username)}</p>` : ''}
+      ${p.nickname ? `<p style="color:var(--mut);font-size:13px;margin-top:1px">(${esc(p.nickname)})</p>` : ''}
+      ${p.quote ? `<p style="font-size:13.5px;font-style:italic;color:var(--ink2);margin-top:5px">“${esc(p.quote)}”</p>` : ''}
       <p style="color:var(--mut);font-size:13px;margin-top:3px">${p.city ? '📍 ' + esc(p.city) + ' · ' : ''}${bn(friendCount)} জন বন্ধু${p.birthday ? ' · 🎂 ' + esc(p.birthday) : ''}</p>
       <div id="scamLabel"></div>
       <div style="margin-top:8px;display:flex;gap:8px;justify-content:center">
@@ -1270,7 +1272,8 @@ async function renderProfile(uid){
     <div class="seclabel">পরিচিতি</div>
     <div class="card" style="padding:12px 15px">
       ${p.bio ? `<p style="font-size:14px;line-height:1.65;margin-bottom:8px">${esc(p.bio)}</p>` : ''}
-      ${[['💼', p.work], ['🎓', p.education], ['📍 থাকেন', p.city], ['🏠 নিজ শহর', p.hometown], ['❤️', p.relationship], ['🎂 জন্মদিন', p.birthday]].filter(r => r[1]).map(r => `<div style="font-size:13.5px;padding:3px 0;color:var(--ink2)">${r[0]} ${esc(r[1])}</div>`).join('')}
+      ${[['💼', p.work], ['🎓', p.education], ['📍 থাকেন', p.city], ['🏠 নিজ শহর', p.hometown], ['❤️', p.relationship], ['🎂 জন্মদিন', p.birthday], ['👤', p.gender], ['🗣 ভাষা', p.languages], ['🎨 শখ', p.hobbies]].filter(r => r[1]).map(r => `<div style="font-size:13.5px;padding:3px 0;color:var(--ink2)">${r[0]} ${esc(r[1])}</div>`).join('')}
+      ${p.website ? `<div style="font-size:13.5px;padding:3px 0">🌐 <a class="tag" target="_blank" rel="noopener" href="${esc(/^https?:\/\//i.test(p.website) ? p.website : 'https://' + p.website)}">${esc(p.website)}</a></div>` : ''}
       <div style="font-size:13.5px;padding:3px 0;color:var(--ink2)">📅 যোগ দিয়েছেন ${new Date(p.created_at).toLocaleDateString('bn-BD', { month: 'long', year: 'numeric' })}</div>
       ${mine && !p.work && !p.education && !p.hometown ? `<button class="btn ghost sm" style="margin-top:8px" onclick="editProfile()">+ পরিচিতি যোগ করো</button>` : ''}
     </div>
@@ -1333,6 +1336,12 @@ function editProfile(){
     <input class="field" id="epEdu" value="${esc(me.education || '')}" placeholder="🎓 পড়াশোনা (যেমন: ঢাকা বিশ্ববিদ্যালয়)">
     <input class="field" id="epHome" value="${esc(me.hometown || '')}" placeholder="🏠 নিজ শহর (যেমন: রাজশাহী)">
     <select class="field" id="epRel"><option value="">❤️ সম্পর্কের অবস্থা (ঐচ্ছিক)</option>${['অবিবাহিত', 'সম্পর্কে আছি', 'বিবাহিত', 'জটিল'].map(r => `<option ${me.relationship === r ? 'selected' : ''}>${r}</option>`).join('')}</select>
+    <select class="field" id="epGender"><option value="">👤 লিঙ্গ (ঐচ্ছিক)</option>${['পুরুষ', 'মহিলা', 'অন্যান্য'].map(g => `<option ${me.gender === g ? 'selected' : ''}>${g}</option>`).join('')}</select>
+    <input class="field" id="epNick" value="${esc(me.nickname || '')}" placeholder="🏷 ডাকনাম (যেমন: লিমন)">
+    <input class="field" id="epLang" value="${esc(me.languages || '')}" placeholder="🗣 ভাষা (যেমন: বাংলা, English)">
+    <input class="field" id="epWeb" value="${esc(me.website || '')}" placeholder="🌐 ওয়েবসাইট (যেমন: example.com)">
+    <input class="field" id="epHobby" value="${esc(me.hobbies || '')}" placeholder="🎨 শখ (যেমন: বই পড়া, ফুটবল, গান)">
+    <input class="field" id="epQuote" value="${esc(me.quote || '')}" placeholder="💬 পছন্দের উক্তি">
     <textarea class="field" id="epBio" placeholder="নিজের সম্পর্কে দু-এক লাইন">${esc(me.bio || '')}</textarea>
     <label style="display:block;font-size:13.5px;color:var(--mut);margin:2px 0 4px">প্রোফাইল ছবি <input type="file" id="epAvatar" accept="image/*" style="font-size:12px"></label>
     <label style="display:block;font-size:13.5px;color:var(--mut);margin:6px 0 12px">কভার ছবি <input type="file" id="epCover" accept="image/*" style="font-size:12px"></label>
@@ -1341,7 +1350,7 @@ function editProfile(){
 async function saveProfile(){
   const uname = $('#epUsername').value.trim().toLowerCase();
   if (uname && !/^[a-z0-9._]{3,30}$/.test(uname)) { toast('ইউজারনেমে শুধু ইংরেজি ছোট হাতের অক্ষর, সংখ্যা, . আর _ (৩-৩০)'); return; }
-  const upd = { name: $('#epName').value.trim() || me.name, city: $('#epCity').value.trim(), bio: $('#epBio').value.trim(), username: uname || null, birthday: $('#epBirthday').value || null, emergency: $('#epEmergency').value.trim(), work: $('#epWork').value.trim(), education: $('#epEdu').value.trim(), hometown: $('#epHome').value.trim(), relationship: $('#epRel').value };
+  const upd = { name: $('#epName').value.trim() || me.name, city: $('#epCity').value.trim(), bio: $('#epBio').value.trim(), username: uname || null, birthday: $('#epBirthday').value || null, emergency: $('#epEmergency').value.trim(), work: $('#epWork').value.trim(), education: $('#epEdu').value.trim(), hometown: $('#epHome').value.trim(), relationship: $('#epRel').value, gender: $('#epGender').value, nickname: $('#epNick').value.trim(), languages: $('#epLang').value.trim(), website: $('#epWeb').value.trim(), hobbies: $('#epHobby').value.trim(), quote: $('#epQuote').value.trim() };
   const af = $('#epAvatar').files[0]; if (af) upd.avatar_url = await uploadImage(af);
   const cf = $('#epCover').files[0]; if (cf) upd.cover_url = await uploadImage(cf);
   const { data, error } = await sb.from('profiles').update(upd).eq('id', me.id).select().single();
