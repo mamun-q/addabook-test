@@ -2076,21 +2076,17 @@ async function leaveGroup(gid){
 async function classifyRequests(reqRows, msgs){
   const out = new Map(); if (!reqRows.length) return out;
   const senderIds = [...new Set(reqRows.map(r => r.otherId).filter(Boolean))];
-  const orFilter = senderIds.map(id => `user_id.eq.${id},friend_id.eq.${id}`).join(',');
-  const [{ data: frs }, { data: myGm }] = await Promise.all([
-    sb.from('friendships').select('user_id,friend_id').eq('status', 'accepted').or(orFilter),
-    sb.from('group_members').select('group_id').eq('user_id', me.id)
-  ]);
+  const { data: myGm } = await sb.from('group_members').select('group_id').eq('user_id', me.id);
   const myGroups = new Set((myGm || []).map(g => g.group_id));
-  const senderFriends = {}; senderIds.forEach(id => senderFriends[id] = new Set());
-  (frs || []).forEach(f => { if (senderFriends[f.user_id]) senderFriends[f.user_id].add(f.friend_id); if (senderFriends[f.friend_id]) senderFriends[f.friend_id].add(f.user_id); });
+  const mutualCounts = {};
+  await Promise.all(senderIds.map(async id => { const { data } = await sb.rpc('rpc_mutual_count', { a: me.id, b: id }); mutualCounts[id] = data || 0; }));
   const senderGroups = {};
   await Promise.all(senderIds.map(async id => { const { data } = await sb.from('group_members').select('group_id').eq('user_id', id); senderGroups[id] = new Set((data || []).map(g => g.group_id)); }));
   const reportCounts = {};
   await Promise.all(senderIds.map(async id => { const { data } = await sb.rpc('report_count', { p_uid: id }); reportCounts[id] = data || 0; }));
   reqRows.forEach(r => {
     const sid = r.otherId; if (!sid) { out.set(r.c.id, 'other'); return; }
-    const mutual = [...(senderFriends[sid] || [])].filter(x => friendIds.has(x)).length;
+    const mutual = mutualCounts[sid] || 0;
     const shared = [...(senderGroups[sid] || [])].some(g => myGroups.has(g));
     if (mutual > 0 || shared) { out.set(r.c.id, 'known'); return; }
     const p = prof(sid); let score = 0;
