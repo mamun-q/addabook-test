@@ -230,4 +230,4 @@ input[type=file]::file-selector-button{font-family:inherit;font-size:12.5px;font
 #msgScroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0}
 
 /* composer expands while typing (Messenger-style): optional buttons collapse */
-.chatbar:focus-within .opt{display:none}
+.chatbar:focus-within:has(#msgInput:not(:placeholder-shown)) .opt{display:none}
