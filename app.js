@@ -44,7 +44,7 @@ function toast(msg){
   document.body.appendChild(t); setTimeout(() => t.remove(), 2600);
 }
 function sheet(html){
-  $('#overlay').innerHTML = `<div class="sheet" onclick="if(event.target===this)closeSheet()"><div class="sheetbox">${html}</div></div>`;
+  $('#overlay').innerHTML = `<div class="sheet" onclick="if(event.target===this)closeSheet()"><div class="sheetbox"><button onclick="closeSheet()" aria-label="বন্ধ করো" style="float:right;border:none;background:var(--line2);color:var(--ink2);width:30px;height:30px;border-radius:50%;font-size:15px;cursor:pointer;line-height:1">✕</button>${html}</div></div>`;
 }
 function closeSheet(){ $('#overlay').innerHTML = ''; }
 function linkTags(text){
@@ -667,7 +667,8 @@ async function boot(){
   }
   go('feed');
 }
-document.addEventListener('DOMContentLoaded', boot);
+window.addEventListener('popstate', () => { history.pushState(null, '', location.href); closeSheet(); });
+document.addEventListener('DOMContentLoaded', () => { history.pushState(null, '', location.href); boot(); });
 
 /* ---------- UPLOAD ---------- */
 async function uploadImage(file){
