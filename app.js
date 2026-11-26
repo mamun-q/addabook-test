@@ -1764,7 +1764,7 @@ async function renderFriends(tab = 'suggest'){
 function userRow(p, actionHtml){
   return `<div class="row"><a href="#" onclick="goProfile('${p.id}');return false">${avatar(p, 46, 17)}</a>
     <div style="flex:1;min-width:0"><b><a href="#" style="color:var(--ink)" onclick="goProfile('${p.id}');return false">${esc(p.name)}</a>${badges(p)}</b>
-    <small>${p.city ? '📍 ' + esc(p.city) + ' · ' : ''}${p.id === me.id ? 'তুমি' : (friendIds.has(p.id) ? 'বন্ধু' : 'নতুন মানুষ')}</small></div>
+    <small>${p.city && fieldVisible(p, 'city', friendIds.has(p.id)) ? '📍 ' + esc(p.city) + ' · ' : ''}${p.id === me.id ? 'তুমি' : (friendIds.has(p.id) ? 'বন্ধু' : 'নতুন মানুষ')}</small></div>
     <div style="display:flex;gap:6px">${actionHtml}</div></div>`;
 }
 async function sendFriendReq(uid, btn){
@@ -3345,7 +3345,7 @@ function showCard(){
     <div class="dphoto" ${photo ? `style="background-image:url('${esc(photo)}')"` : ''}>
       ${photo ? '' : `<span class="face">${esc(p.name[0] || '?')}</span>`}
       <span class="matchp">${bn(match)}% ম্যাচ</span>
-      <div class="dinfo"><b>${esc(p.name)}, ${bn(d.age)}</b>${badges(p)}<div style="font-size:12.5px;opacity:.92">${p.city ? '📍 ' + esc(p.city) + ' · ' : ''}এলাকার কাছাকাছি</div></div>
+      <div class="dinfo"><b>${esc(p.name)}, ${bn(d.age)}</b>${badges(p)}<div style="font-size:12.5px;opacity:.92">${p.city && fieldVisible(p, 'city', friendIds.has(p.id)) ? '📍 ' + esc(p.city) + ' · ' : ''}এলাকার কাছাকাছি</div></div>
     </div>
     <div class="chiprow2">${(d.interests || []).map(i => `<span class="ichip">${esc(i)}</span>`).join('')}</div>
     ${d.bio ? `<p class="dbio">${esc(d.bio)}</p>` : ''}
