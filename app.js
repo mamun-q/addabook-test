@@ -1836,7 +1836,7 @@ function doSearch(q){
 }
 
 /* ---------- NOTIFICATIONS ---------- */
-const NOTIF_TEXT = { like: 'তোমার পোস্টে লাইক দিয়েছে', comment: 'তোমার পোস্টে মন্তব্য করেছে', friend_request: 'তোমাকে বন্ধুর অনুরোধ পাঠিয়েছে', friend_accept: 'তোমার বন্ধুর অনুরোধ গ্রহণ করেছে', follow: 'তোমাকে ফলো করেছে', gift: 'তোমাকে ১০০ টোকেন উপহার পাঠিয়েছে', match: 'তোমার সাথে ম্যাচ হয়েছে 💘', message: 'তোমাকে মেসেজ পাঠিয়েছে', anon: '🙈 তোমার কাছে একটা বেনামি প্রশ্ন এসেছে' };
+const NOTIF_TEXT = { like: 'তোমার পোস্টে লাইক দিয়েছে', comment: 'তোমার পোস্টে মন্তব্য করেছে', friend_request: 'তোমাকে বন্ধুর অনুরোধ পাঠিয়েছে', friend_accept: 'তোমার বন্ধুর অনুরোধ গ্রহণ করেছে', follow: 'তোমাকে ফলো করেছে', gift: 'তোমাকে ১০০ টোকেন উপহার পাঠিয়েছে', match: 'তোমার সাথে ম্যাচ হয়েছে 💘', message: 'তোমাকে মেসেজ পাঠিয়েছে', anon: '🙈 তোমার কাছে একটা বেনামি প্রশ্ন এসেছে', family: 'তোমাকে পরিবারের সদস্য হিসেবে যোগ করতে চায়' };
 async function renderNotifs(){
   curView = 'notifs'; renderShell();
   view().innerHTML = `<div class="view"><div style="padding:14px 16px;font-size:18px;font-weight:800">নোটিফিকেশন</div><div id="notifList"><div class="empty">লোড হচ্ছে...</div></div></div>`;
@@ -1849,6 +1849,13 @@ async function renderNotifs(){
 
 /* ---------- PROFILE ---------- */
 async function goProfile(uid){ curView = 'profile'; renderProfile(uid); }
+function fieldVisible(p, key, viewerIsFriend){
+  if (!p || p.id === me.id) return true;
+  const v = ((p.field_privacy || {})[key]) || 'public';
+  if (v === 'me') return false;
+  if (v === 'friends') return !!viewerIsFriend;
+  return true;
+}
 async function renderProfile(uid){
   curView = 'profile'; renderShell();
   const { data: p } = await sb.from('profiles').select('*').eq('id', uid).single();
@@ -1862,15 +1869,18 @@ async function renderProfile(uid){
   ]);
   const friendCount = (friendsRes.data || []).length;
   const theirFriendIds = (friendsRes.data || []).map(r => r.requester === uid ? r.addressee : r.requester);
+  const isFriendOf = theirFriendIds.includes(me.id);
   view().innerHTML = `<div class="view">
     <div class="cover" ${safeUrl(p.cover_url) ? `style="background-image:url('${safeUrl(p.cover_url)}')"` : (p.theme ? `style="background:${(PROFILE_THEMES.find(t => t[0] === p.theme) || [])[2] || ''}"` : '')}></div>
     <div class="prof">
       <div class="big">${p.avatar_url ? `<img src="${esc(p.avatar_url)}">` : esc(p.name[0] || '?')}</div>
       <div style="font-size:20px;font-weight:800">${esc(p.name)}${badges(p)}</div>
       ${p.username ? `<p style="color:var(--acc);font-size:13px;margin-top:2px">@${esc(p.username)}</p>` : ''}
-      ${p.nickname ? `<p style="color:var(--mut);font-size:13px;margin-top:1px">(${esc(p.nickname)})</p>` : ''}
+      ${p.nickname && fieldVisible(p, 'nickname', isFriendOf) ? `<p style="color:var(--mut);font-size:13px;margin-top:1px">(${esc(p.nickname)})</p>` : ''}
       ${p.quote ? `<p style="font-size:13.5px;font-style:italic;color:var(--ink2);margin-top:5px">“${esc(p.quote)}”</p>` : ''}
-      <p style="color:var(--mut);font-size:13px;margin-top:3px">${p.city ? '📍 ' + esc(p.city) + ' · ' : ''}${bn(friendCount)} জন বন্ধু${p.birthday ? ' · 🎂 ' + esc(p.birthday) : ''}</p>
+      ${p.featured ? `<p class="usercontent" style="font-size:13.5px;color:var(--ink2);margin-top:5px;line-height:1.55">${esc(p.featured)}</p>` : ''}
+      ${p.category ? `<p style="margin-top:5px"><span class="pill">${esc(p.category)}</span></p>` : ''}
+      <p style="color:var(--mut);font-size:13px;margin-top:3px">${p.city && fieldVisible(p, 'city', isFriendOf) ? '📍 ' + esc(p.city) + ' · ' : ''}${bn(friendCount)} জন বন্ধু${p.birthday && fieldVisible(p, 'birthday', isFriendOf) ? ' · 🎂 ' + esc(p.birthday) : ''}</p>
       <div id="scamLabel"></div>
       <div style="margin-top:8px;display:flex;gap:8px;justify-content:center">
         <button class="btn ghost sm" onclick="copyProfileLink('${uid}')">${ic('link', 14)} লিংক কপি</button>
@@ -1891,11 +1901,12 @@ async function renderProfile(uid){
     <div class="seclabel">পরিচিতি</div>
     <div class="card" style="padding:12px 15px">
       ${p.bio ? `<p style="font-size:14px;line-height:1.65;margin-bottom:8px">${esc(p.bio)}</p>` : ''}
-      ${[['briefcase', '', p.work], ['grad', '', p.education], ['pinLoc', 'থাকেন', p.city], ['home', 'নিজ শহর', p.hometown], ['heart', '', p.relationship], ['calendar', 'জন্মদিন', p.birthday], ['user', '', p.gender], ['type', 'ভাষা', p.languages], ['palette', 'শখ', p.hobbies]].filter(r => r[2]).map(r => `<div style="font-size:13.5px;padding:3px 0;color:var(--ink2);display:flex;align-items:center;gap:7px"><span style="color:var(--acc);display:inline-flex">${ic(r[0], 15)}</span><span>${r[1] ? r[1] + ' ' : ''}${esc(r[2])}</span></div>`).join('')}
-      ${p.website ? `<div style="font-size:13.5px;padding:3px 0;display:flex;align-items:center;gap:7px"><span style="color:var(--acc);display:inline-flex">${ic('globe', 15)}</span><a class="tag" target="_blank" rel="noopener" href="${esc(/^https?:\/\//i.test(p.website) ? p.website : 'https://' + p.website)}">${esc(p.website)}</a></div>` : ''}
+      ${[['briefcase', '', p.work, 'work'], ['grad', '', p.education, 'education'], ['pinLoc', 'থাকেন', p.city, 'city'], ['home', 'নিজ শহর', p.hometown, 'hometown'], ['heart', '', p.relationship, 'relationship'], ['calendar', 'জন্মদিন', p.birthday, 'birthday'], ['user', '', p.gender, 'gender'], ['user', 'Pronouns', p.pronouns, 'gender'], ['type', 'ভাষা', p.languages, 'languages'], ['palette', 'শখ', p.hobbies, 'hobbies']].filter(r => r[2] && fieldVisible(p, r[3], isFriendOf)).map(r => `<div style="font-size:13.5px;padding:3px 0;color:var(--ink2);display:flex;align-items:center;gap:7px"><span style="color:var(--acc);display:inline-flex">${ic(r[0], 15)}</span><span>${r[1] ? r[1] + ' ' : ''}${esc(r[2])}</span></div>`).join('')}
+      ${p.website && fieldVisible(p, 'website', isFriendOf) ? p.website.split('\n').map(w => w.trim()).filter(Boolean).slice(0, 5).map(w => `<div style="font-size:13.5px;padding:3px 0;display:flex;align-items:center;gap:7px"><span style="color:var(--acc);display:inline-flex">${ic('globe', 15)}</span><a class="tag" target="_blank" rel="noopener" href="${esc(/^https?:\/\//i.test(w) ? w : 'https://' + w)}">${esc(w)}</a></div>`).join('') : ''}
       <div style="font-size:13.5px;padding:3px 0;color:var(--ink2)">📅 যোগ দিয়েছেন ${new Date(p.created_at).toLocaleDateString(LANG === 'en' ? 'en-US' : 'bn-BD', { month: 'long', year: 'numeric' })}</div>
       ${mine && !p.work && !p.education && !p.hometown ? `<button class="btn ghost sm" style="margin-top:8px" onclick="editProfile()">+ পরিচিতি যোগ করো</button>` : ''}
     </div>
+    <div id="profFamily"></div>
     <div class="seclabel">ছবি</div><div id="profPhotos" style="padding:0 12px"><div class="empty">লোড হচ্ছে...</div></div>
     <div class="seclabel">বন্ধুরা · ${bn(friendCount)}</div><div id="profFriends" style="padding:0 12px"><div class="empty">লোড হচ্ছে...</div></div>
     <div class="seclabel">পোস্টসমূহ</div><div id="profPosts"><div class="empty">লোড হচ্ছে...</div></div></div>`;
@@ -1909,6 +1920,13 @@ async function renderProfile(uid){
   await cacheProfiles(theirFriendIds.slice(0, 9));
   const pf = document.getElementById('profFriends');
   if (pf) pf.innerHTML = theirFriendIds.length ? `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">${theirFriendIds.slice(0, 9).map(fid => { const fp = prof(fid); return `<button onclick="goProfile('${fid}')" style="background:var(--card);border:1px solid var(--line2);border-radius:14px;padding:10px 4px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:5px">${avatar(fp, 44, 16)}<small style="font-size:11.5px;font-weight:600;color:var(--ink)">${esc(fp.name.split(' ')[0])}</small></button>`; }).join('')}</div>` : '<div class="card empty" style="margin:0">এখনো কোনো বন্ধু নেই</div>';
+  (async () => {
+    const { data: fams } = await sb.from('family_links').select('*').eq('status', 'accepted').or(`from_id.eq.${uid},to_id.eq.${uid}`);
+    const box = document.getElementById('profFamily'); if (!box) return;
+    if (!fams || !fams.length) { box.innerHTML = ''; return; }
+    await cacheProfiles(fams.flatMap(f => [f.from_id, f.to_id]));
+    box.innerHTML = `<div class="seclabel">পরিবার</div><div class="card" style="padding:6px 15px">${fams.map(f => { const other = f.from_id === uid ? f.to_id : f.from_id; const rel = f.from_id === uid ? f.from_relation : (f.to_relation || f.from_relation); const fp2 = prof(other); return `<button class="menu-item" onclick="goProfile('${other}')">${avatar(fp2, 34, 13)}<span style="flex:1;min-width:0">${esc(fp2.name)}</span><span class="pill">${esc(rel)}</span></button>`; }).join('')}</div>`;
+  })();
   sb.rpc('report_count', { p_uid: uid }).then(({ data }) => {
     const el = document.getElementById('scamLabel');
     if (el && typeof data === 'number' && data >= 3) el.innerHTML = '<span style="display:inline-block;background:#FEF2F2;color:#B91C1C;border:1px solid #FECACA;border-radius:99px;padding:3px 10px;font-size:12px;font-weight:700;margin-top:6px">⚠️ সতর্কতা: এই অ্যাকাউন্টের বিরুদ্ধে একাধিক রিপোর্ট আছে — লেনদেনে সাবধান</span>';
@@ -1944,32 +1962,91 @@ function toggleTheme(){
   const dark = document.documentElement.classList.toggle('dark');
   localStorage.setItem('adda-theme', dark ? 'dark' : 'light');
 }
+function pvSel(key){
+  const cur = (me.field_privacy || {})[key] || 'public';
+  return `<select id="pv_${key}" class="field" style="width:112px;flex:none;font-size:12px;padding-left:6px;padding-right:6px" title="কে দেখবে">${[['public', '🌐 সবাই'], ['friends', '👥 বন্ধুরা'], ['me', '🔒 শুধু আমি']].map(([v, l]) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+}
+const FAM_RELS = ['বাবা', 'মা', 'ভাই', 'বোন', 'স্বামী', 'স্ত্রী', 'ছেলে', 'মেয়ে', 'দাদা', 'দাদি', 'নানা', 'নানি', 'চাচা', 'মামা', 'খালা', 'ফুফু', 'অন্যান্য আত্মীয়'];
+async function loadEpFamily(){
+  const box = $('#epFamily'); if (!box) return;
+  const { data } = await sb.from('family_links').select('*').or(`from_id.eq.${me.id},to_id.eq.${me.id}`).order('created_at', { ascending: false });
+  await cacheProfiles((data || []).flatMap(f => [f.from_id, f.to_id]));
+  if (!data || !data.length) { box.innerHTML = '<p style="font-size:13px;color:var(--mut);padding:2px 0 8px">এখনো কাউকে যোগ করোনি</p>'; return; }
+  box.innerHTML = data.map(f => {
+    const out = f.from_id === me.id; const other = prof(out ? f.to_id : f.from_id);
+    if (f.status === 'accepted') return `<div class="menu-item" style="cursor:default">${avatar(other, 32, 13)}<span style="flex:1;min-width:0">${esc(other.name)}</span><span class="pill">${esc(out ? f.from_relation : (f.to_relation || f.from_relation))}</span><button class="btn ghost sm" onclick="famRemove('${f.id}')">সরাও</button></div>`;
+    if (out) return `<div class="menu-item" style="cursor:default">${avatar(other, 32, 13)}<span style="flex:1;min-width:0">${esc(other.name)}</span><span class="pill">অপেক্ষমাণ</span><button class="btn ghost sm" onclick="famRemove('${f.id}')">বাদ দাও</button></div>`;
+    return `<div class="menu-item" style="cursor:default">${avatar(other, 32, 13)}<span style="flex:1;min-width:0">${esc(other.name)} <small style="color:var(--mut)">তোমাকে "${esc(f.from_relation)}" হিসেবে যোগ করতে চায়</small></span><button class="btn sm" onclick="famAcceptSheet('${f.id}')">গ্রহণ</button><button class="btn ghost sm" onclick="famRemove('${f.id}')">বাদ</button></div>`;
+  }).join('');
+}
+function famAddSheet(){
+  sheet(`<h3>${ic('users', 18)} পরিবারের সদস্য যোগ করো</h3>
+    <select class="field" id="famRel">${FAM_RELS.map(r => `<option>${r}</option>`).join('')}</select>
+    <p style="font-size:12.5px;color:var(--mut);margin:4px 0 8px">সম্পর্ক বেছে বন্ধুকে চাপ দাও — তার কাছে অনুরোধ যাবে, সে গ্রহণ করলেই দুজনের প্রোফাইলে দেখাবে।</p>
+    <div id="famPick"><div class="empty">লোড হচ্ছে...</div></div>`);
+  cacheProfiles([...friendIds]).then(() => {
+    const el = $('#famPick'); if (!el) return;
+    const list = [...friendIds].map(id => prof(id)).filter(p => p && p.id);
+    el.innerHTML = list.length ? list.map(p => `<button class="menu-item" onclick="famSend('${p.id}')">${avatar(p, 34, 13)}<span style="flex:1;min-width:0">${esc(p.name)}</span></button>`).join('') : '<div class="empty">বন্ধু তালিকা খালি</div>';
+  });
+}
+async function famSend(uid){
+  const rel = $('#famRel').value;
+  const { error } = await sb.from('family_links').insert({ from_id: me.id, to_id: uid, from_relation: rel });
+  if (error) { toast('পাঠানো যায়নি — হয়তো আগেই পাঠানো আছে'); return; }
+  notify(uid, 'family'); closeSheet(); toast('পরিবারের অনুরোধ পাঠানো হয়েছে ✓'); editProfile();
+}
+function famAcceptSheet(id){
+  sheet(`<h3>${ic('users', 18)} সম্পর্ক নিশ্চিত করো</h3>
+    <p style="font-size:13px;color:var(--mut);margin-bottom:8px">তোমার দিক থেকে সম্পর্কটা বাছো:</p>
+    <select class="field" id="famRelBack">${FAM_RELS.map(r => `<option>${r}</option>`).join('')}</select>
+    <button class="btn block" onclick="famAccept('${id}')">গ্রহণ করো</button>`);
+}
+async function famAccept(id){
+  const rel = $('#famRelBack').value;
+  const { error } = await sb.from('family_links').update({ status: 'accepted', to_relation: rel }).eq('id', id);
+  if (error) { toast('করা যায়নি'); return; }
+  closeSheet(); toast('পরিবারে যোগ হয়েছে ✓'); editProfile();
+}
+async function famRemove(id){
+  const { error } = await sb.from('family_links').delete().eq('id', id);
+  if (error) { toast('করা যায়নি'); return; }
+  toast('সরানো হয়েছে'); editProfile();
+}
 function editProfile(){
   sheet(`<h3>প্রোফাইল এডিট</h3>
     <input class="field" id="epName" value="${esc(me.name)}" placeholder="নাম">
     <input class="field" id="epUsername" value="${esc(me.username || '')}" placeholder="ইউজারনেম (ইংরেজি ছোট হাতের, যেমন: limon.bd)">
-    <input class="field" id="epCity" value="${esc(me.city || '')}" placeholder="শহর (যেমন: ঢাকা)">
-    <label style="display:block;font-size:13px;color:var(--mut);margin:2px 0 4px">জন্মদিন <input class="field" type="date" id="epBirthday" value="${esc(me.birthday || '')}" style="margin:0"></label>
+    <div style="display:flex;gap:8px;align-items:flex-start"><input class="field" id="epCity" value="${esc(me.city || '')}" placeholder="শহর (যেমন: ঢাকা)" style="flex:1">${pvSel('city')}</div>
+    <div style="display:flex;gap:8px;align-items:flex-end"><label style="flex:1;font-size:13px;color:var(--mut)">জন্মদিন <input class="field" type="date" id="epBirthday" value="${esc(me.birthday || '')}" style="margin:0"></label>${pvSel('birthday')}</div>
     <input class="field" id="epEmergency" value="${esc(me.emergency || '')}" placeholder="জরুরি যোগাযোগ (শুধু তুমিই দেখবে)">
-    <input class="field" id="epWork" value="${esc(me.work || '')}" placeholder="কাজ / পেশা (যেমন: ছাত্র, শিক্ষক)">
-    <input class="field" id="epEdu" value="${esc(me.education || '')}" placeholder="পড়াশোনা (যেমন: ঢাকা বিশ্ববিদ্যালয়)">
-    <input class="field" id="epHome" value="${esc(me.hometown || '')}" placeholder="নিজ শহর (যেমন: রাজশাহী)">
-    <select class="field" id="epRel"><option value="">সম্পর্কের অবস্থা (ঐচ্ছিক)</option>${['অবিবাহিত', 'সম্পর্কে আছি', 'বিবাহিত', 'জটিল'].map(r => `<option ${me.relationship === r ? 'selected' : ''}>${r}</option>`).join('')}</select>
-    <select class="field" id="epGender"><option value="">লিঙ্গ (ঐচ্ছিক)</option>${['পুরুষ', 'মহিলা', 'অন্যান্য'].map(g => `<option ${me.gender === g ? 'selected' : ''}>${g}</option>`).join('')}</select>
-    <input class="field" id="epNick" value="${esc(me.nickname || '')}" placeholder="ডাকনাম (যেমন: লিমন)">
-    <input class="field" id="epLang" value="${esc(me.languages || '')}" placeholder="ভাষা (যেমন: বাংলা, English)">
-    <input class="field" id="epWeb" value="${esc(me.website || '')}" placeholder="ওয়েবসাইট (যেমন: example.com)">
-    <input class="field" id="epHobby" value="${esc(me.hobbies || '')}" placeholder="শখ (যেমন: বই পড়া, ফুটবল, গান)">
+    <div style="display:flex;gap:8px;align-items:flex-start"><input class="field" id="epWork" value="${esc(me.work || '')}" placeholder="কাজ / পেশা (যেমন: ছাত্র, শিক্ষক)" style="flex:1">${pvSel('work')}</div>
+    <div style="display:flex;gap:8px;align-items:flex-start"><input class="field" id="epEdu" value="${esc(me.education || '')}" placeholder="পড়াশোনা (যেমন: ঢাকা বিশ্ববিদ্যালয়)" style="flex:1">${pvSel('education')}</div>
+    <div style="display:flex;gap:8px;align-items:flex-start"><input class="field" id="epHome" value="${esc(me.hometown || '')}" placeholder="নিজ শহর (যেমন: রাজশাহী)" style="flex:1">${pvSel('hometown')}</div>
+    <div style="display:flex;gap:8px;align-items:flex-start"><select class="field" id="epRel" style="flex:1"><option value="">সম্পর্কের অবস্থা (ঐচ্ছিক)</option>${['অবিবাহিত', 'সম্পর্কে আছি', 'বিবাহিত', 'জটিল'].map(r => `<option ${me.relationship === r ? 'selected' : ''}>${r}</option>`).join('')}</select>${pvSel('relationship')}</div>
+    <div style="display:flex;gap:8px;align-items:flex-start"><select class="field" id="epGender" style="flex:1"><option value="">লিঙ্গ (ঐচ্ছিক)</option>${['পুরুষ', 'মহিলা', 'অন্যান্য'].map(g => `<option ${me.gender === g ? 'selected' : ''}>${g}</option>`).join('')}</select>${pvSel('gender')}</div>
+    <div style="display:flex;gap:8px;align-items:flex-start"><input class="field" id="epNick" value="${esc(me.nickname || '')}" placeholder="ডাকনাম (যেমন: লিমন)" style="flex:1">${pvSel('nickname')}</div>
+    <div style="display:flex;gap:8px;align-items:flex-start"><input class="field" id="epLang" value="${esc(me.languages || '')}" placeholder="ভাষা (যেমন: বাংলা, English)" style="flex:1">${pvSel('languages')}</div>
+    <div style="display:flex;gap:8px;align-items:flex-start"><textarea class="field" id="epWeb" rows="3" style="flex:1" placeholder="লিঙ্কসমূহ — প্রতি লাইনে একটা (সর্বোচ্চ ৫টা)">${esc(me.website || '')}</textarea>${pvSel('website')}</div>
+    <div style="display:flex;gap:8px;align-items:flex-start"><input class="field" id="epHobby" value="${esc(me.hobbies || '')}" placeholder="শখ (যেমন: বই পড়া, ফুটবল, গান)" style="flex:1">${pvSel('hobbies')}</div>
     <input class="field" id="epQuote" value="${esc(me.quote || '')}" placeholder="পছন্দের উক্তি">
+    <input class="field" id="epFeatured" value="${esc(me.featured || '')}" maxlength="150" placeholder="Pinned details — এক লাইনে তোমার পরিচিতি">
+    <select class="field" id="epCategory"><option value="">প্রোফাইল ক্যাটাগরি (ঐচ্ছিক)</option>${['শিক্ষার্থী', 'শিক্ষক', 'ডিজিটাল ক্রিয়েটর', 'ফ্রিল্যান্সার', 'ব্যবসায়ী', 'চাকরিজীবী', 'কৃষক', 'অন্যান্য'].map(c => `<option ${me.category === c ? 'selected' : ''}>${c}</option>`).join('')}</select>
+    <input class="field" id="epPronouns" value="${esc(me.pronouns || '')}" placeholder="Pronouns (যেমন: he/him, she/her)">
     <textarea class="field" id="epBio" placeholder="নিজের সম্পর্কে দু-এক লাইন">${esc(me.bio || '')}</textarea>
     <label style="display:block;font-size:13.5px;color:var(--mut);margin:2px 0 4px">প্রোফাইল ছবি <input type="file" id="epAvatar" accept="image/*" style="font-size:12px"></label>
     <label style="display:block;font-size:13.5px;color:var(--mut);margin:6px 0 12px">কভার ছবি <input type="file" id="epCover" accept="image/*" style="font-size:12px"></label>
+    <div class="seclabel" style="margin:14px 0 4px">পরিবার</div>
+    <div id="epFamily"><p style="font-size:13px;color:var(--mut)">লোড হচ্ছে...</p></div>
+    <button class="btn ghost block" style="margin:6px 0 12px" onclick="famAddSheet()">+ পরিবারের সদস্য যোগ করো</button>
     <button class="btn block" onclick="saveProfile()">সংরক্ষণ করো</button>`);
+  loadEpFamily();
 }
 async function saveProfile(){
   const uname = $('#epUsername').value.trim().toLowerCase();
   if (uname && !/^[a-z0-9._]{3,30}$/.test(uname)) { toast('ইউজারনেমে শুধু ইংরেজি ছোট হাতের অক্ষর, সংখ্যা, . আর _ (৩-৩০)'); return; }
-  const upd = { name: $('#epName').value.trim() || me.name, city: $('#epCity').value.trim(), bio: $('#epBio').value.trim(), username: uname || null, birthday: $('#epBirthday').value || null, emergency: $('#epEmergency').value.trim(), work: $('#epWork').value.trim(), education: $('#epEdu').value.trim(), hometown: $('#epHome').value.trim(), relationship: $('#epRel').value, gender: $('#epGender').value, nickname: $('#epNick').value.trim(), languages: $('#epLang').value.trim(), website: $('#epWeb').value.trim(), hobbies: $('#epHobby').value.trim(), quote: $('#epQuote').value.trim() };
+  const fp = {}; ['work', 'education', 'city', 'hometown', 'relationship', 'birthday', 'gender', 'languages', 'hobbies', 'website', 'nickname'].forEach(k => { const el = document.getElementById('pv_' + k); if (el) fp[k] = el.value; });
+  const upd = { name: $('#epName').value.trim() || me.name, city: $('#epCity').value.trim(), bio: $('#epBio').value.trim(), username: uname || null, birthday: $('#epBirthday').value || null, emergency: $('#epEmergency').value.trim(), work: $('#epWork').value.trim(), education: $('#epEdu').value.trim(), hometown: $('#epHome').value.trim(), relationship: $('#epRel').value, gender: $('#epGender').value, nickname: $('#epNick').value.trim(), languages: $('#epLang').value.trim(), website: $('#epWeb').value.split('\n').map(x => x.trim()).filter(Boolean).slice(0, 5).join('\n'), hobbies: $('#epHobby').value.trim(), quote: $('#epQuote').value.trim(), featured: $('#epFeatured').value.trim(), category: $('#epCategory').value, pronouns: $('#epPronouns').value.trim(), field_privacy: fp };
   const af = $('#epAvatar').files[0]; if (af) upd.avatar_url = await uploadImage(af);
   const cf = $('#epCover').files[0]; if (cf) upd.cover_url = await uploadImage(cf);
   const { data, error } = await sb.from('profiles').update(upd).eq('id', me.id).select().single();
