@@ -90,8 +90,10 @@ function renderShell(){
       <button class="icb" onclick="go('chat')" aria-label="চ্যাট">${I.msg}</button>
     </div></div>`;
   const EN = localStorage.getItem('adda-lang') === 'en';
-  const items = EN ? [['feed','Home',I.home],['friends','Friends',I.users],['trending','Explore',I.fire],['chat','Chat',I.msg],['profile','Profile',I.user]]
-                   : [['feed','হোম',I.home],['friends','বন্ধু',I.users],['trending','আবিষ্কার',I.fire],['chat','চ্যাট',I.msg],['profile','প্রোফাইল',I.user]];
+  const kid = localStorage.getItem('adda-kid') === '1';
+  const mid = kid ? ['trending', EN ? 'Explore' : 'আবিষ্কার', I.fire] : ['dating', EN ? 'Dating' : 'মনের মানুষ', I.heart];
+  const items = EN ? [['feed','Home',I.home],['friends','Friends',I.users],mid,['chat','Chat',I.msg],['profile','Profile',I.user]]
+                   : [['feed','হোম',I.home],['friends','বন্ধু',I.users],mid,['chat','চ্যাট',I.msg],['profile','প্রোফাইল',I.user]];
   $('#navbar').innerHTML = `<div class="nav">${items.map(([k,t,ic]) => `<button class="${curView === k ? 'on' : ''}" onclick="go('${k}')">${ic}${t}</button>`).join('')}</div>`;
 }
 function go(v, arg){
