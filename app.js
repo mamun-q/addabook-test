@@ -2097,10 +2097,10 @@ async function classifyRequests(reqRows, msgs){
     const threadMsgs = (msgs || []).filter(m => m.conversation_id === r.c.id && m.sender_id === sid);
     const first = threadMsgs[threadMsgs.length - 1];
     if (first && /https?:\/\/|www\./i.test(first.body)) score += 2;
-    if (p && p.created_at && (Date.now() - new Date(p.created_at).getTime()) < 7 * 864e5) score += 2;
+    if (p && p.created_at && (Date.now() - new Date(p.created_at).getTime()) < 7 * 864e5) score += 1;
     if (p && !p.avatar_url) score += 1;
     if ((reportCounts[sid] || 0) >= 3) score += 2;
-    out.set(r.c.id, score >= 3 ? 'spam' : 'other');
+    out.set(r.c.id, score >= 4 ? 'spam' : 'other');
   });
   return out;
 }
@@ -2151,8 +2151,8 @@ async function renderChatList(mode = 'main'){
     shown.forEach(r => r._cls = reqCls.get(r.c.id) || 'other');
     const gK = shown.filter(r => r._cls === 'known'), gO = shown.filter(r => r._cls === 'other'), gS = shown.filter(r => r._cls === 'spam');
     const multi = [gK, gO, gS].filter(g => g.length).length > 1;
-    const sec = (g, t) => g.length ? (multi ? `<div style="padding:10px 16px 2px;font-size:12px;font-weight:800;color:var(--faint);letter-spacing:.3px">${t}</div>` : '') + g.map(rowHtml).join('') : '';
-    html = (sec(gK, tx('চিনতে পারো', 'You may know')) + sec(gO, tx('অন্যান্য রিকুয়েস্ট', 'Other requests')) + sec(gS, tx('স্প্যাম', 'Spam'))) || '<div class="empty">এখানে কিছু নেই</div>';
+    const sec = (g, t, force) => g.length ? ((multi || force) ? `<div style="padding:10px 16px 2px;font-size:12px;font-weight:800;color:var(--faint);letter-spacing:.3px">${t}</div>` : '') + g.map(rowHtml).join('') : '';
+    html = (sec(gK, tx('চিনতে পারো', 'You may know')) + sec(gO, tx('অন্যান্য রিকুয়েস্ট', 'Other requests')) + sec(gS, tx('স্প্যাম', 'Spam'), true)) || '<div class="empty">এখানে কিছু নেই</div>';
   } else {
     html = shown.length ? shown.map(rowHtml).join('') : '<div class="empty">এখানে কিছু নেই</div>';
   }
@@ -2799,7 +2799,7 @@ async function acceptRequest(convId){
   if (error) { toast('করা যায়নি'); return; }
   if (chatMeta && chatMeta.myRow) { chatMeta.myRow.requested = false; chatMeta.isReq = false; }
   const rb = $('#reqBar'); if (rb) rb.remove();
-  if (typeof renderMsgs === 'function') renderMsgs();
+  if (typeof renderMsgList === 'function') renderMsgList();
   if (!me.hide_reads) { const nowIso = new Date().toISOString(); sb.from('conversation_members').update({ last_read_at: nowIso }).eq('conversation_id', convId).eq('user_id', me.id).then(() => {}); if (chatMeta && chatMeta.myRow) chatMeta.myRow.last_read_at = nowIso; }
   toast('রিকুয়েস্ট গ্রহণ করা হয়েছে ✓');
 }
