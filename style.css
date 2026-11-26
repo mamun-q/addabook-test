@@ -51,7 +51,7 @@ select.field{appearance:none}
 .chead b{font-size:14.5px}
 .chead small{display:block;color:var(--faint);font-size:11.5px;margin-top:1px}
 .vf{display:inline-flex;width:15px;height:15px;border-radius:50%;background:var(--acc);color:#fff;font-size:9.5px;align-items:center;justify-content:center;vertical-align:-2px;margin-left:3px}
-.gold{display:inline-flex;width:15px;height:15px;border-radius:50%;background:var(--gold);color:#fff;font-size:9px;align-items:center;justify-content:center;vertical-align:-2px;margin-left:2px}
+.gold{display:inline-flex;width:16px;height:16px;border-radius:50%;background:linear-gradient(135deg,#F59E0B,#FBBF24 60%,#FDE68A);color:#fff;align-items:center;justify-content:center;vertical-align:-2.5px;margin-left:3px;box-shadow:0 1px 5px rgba(245,158,11,.5), inset 0 1px 1px rgba(255,255,255,.6)}
 .ptext{font-size:14.5px;line-height:1.6;margin:10px 0;color:var(--ink2);white-space:pre-wrap;word-break:break-word}
 .ptext .tag{color:var(--acc);font-weight:600}
 .pimg{width:100%;border-radius:16px;margin:2px 0 4px;display:block;background:var(--line2)}

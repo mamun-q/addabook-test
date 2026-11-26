@@ -32,7 +32,8 @@ function avatar(p, size = 38, fs = 15){
   const name = (p && p.name) || '?';
   return `<span class="av" style="background:${colorFor(p ? p.id : name)};width:${size}px;height:${size}px;font-size:${fs}px">${esc(name.trim()[0] || '?')}</span>`;
 }
-function badges(p){ return (p && p.verified ? '<span class="vf">✓</span>' : '') + (p && p.badge ? '<span class="gold">◆</span>' : ''); }
+const CROWN = '<svg viewBox="0 0 24 24" width="10" height="10" fill="#fff" aria-hidden="true"><path d="M3 17.5 2 7l5.2 3.6L12 5l4.8 5.6L22 7l-1 10.5z"/><rect x="3" y="18.6" width="18" height="1.9" rx="0.95"/></svg>';
+function badges(p){ return (p && p.verified ? '<span class="vf">✓</span>' : '') + (p && p.badge ? `<span class="gold" title="Premium">${CROWN}</span>` : ''); }
 function timeAgo(ts){
   const s = (Date.now() - new Date(ts).getTime()) / 1000;
   if (LANG === 'en'){
@@ -242,10 +243,10 @@ const I18N = {
   'দিনে সর্বোচ্চ ১০টি': 'Up to 10 a day', 'স্বাগত বোনাস': 'Welcome bonus', 'নতুন অ্যাকাউন্টে একবার': 'Once, for new accounts',
   'পোস্ট বুস্ট': 'Post boost', 'নিজের পোস্টের ⋯ মেনু থেকে, ২৪ ঘণ্টা সবার উপরে': "From your post's ⋯ menu — stays on top for 24 hours",
   'বন্ধুকে উপহার': 'Gift a friend', 'বন্ধুর প্রোফাইল থেকে পাঠাও': "Send it from your friend's profile",
-  'প্রিমিয়াম ব্যাজ': 'Premium badge', 'নামের পাশে সোনালি ব্যাজ': 'A golden badge next to your name',
+  'প্রিমিয়াম ব্যাজ': 'Premium badge', 'অ্যাডমিন ড্যাশবোর্ড': 'Admin dashboard', 'মোট ব্যবহারকারী': 'Total users', 'মোট পোস্ট': 'Total posts', 'রিপোর্টসমূহ': 'Reports', 'ব্যবহারকারী': 'Users', 'পোস্টটি দেখো': 'View post', 'পোস্ট মুছো': 'Delete post', 'রিপোর্ট বাতিল': 'Dismiss', 'কোনো রিপোর্ট নেই': 'No reports', 'ভেরিফাই করো': 'Verify', 'ভেরিফাইড': 'Verified', 'ব্যাজ দাও': 'Give badge', 'ব্যাজ সরাও': 'Remove badge', 'প্রোফাইল দেখো': 'View profile', 'নামের পাশে সোনালি ব্যাজ': 'A golden badge next to your name',
   '২০০ দিয়ে কেনো': 'Buy for 200', 'ইতিহাস': 'History', 'এখনো কোনো লেনদেন নেই': 'No transactions yet',
   'টোকেন যথেষ্ট নেই': 'Not enough tokens', 'টোকেন যথেষ্ট নেই (লাগবে ১০০)': 'Not enough tokens (needs 100)',
-  'টোকেন যথেষ্ট নেই (লাগবে ২০০)': 'Not enough tokens (needs 200)', 'অভিনন্দন! প্রিমিয়াম ব্যাজ পেয়ে গেছ ◆': 'Congratulations! You got the premium badge ◆',
+  'টোকেন যথেষ্ট নেই (লাগবে ২০০)': 'Not enough tokens (needs 200)', 'অভিনন্দন! প্রিমিয়াম ব্যাজ পেয়ে গেছ 👑': 'Congratulations! You got the premium badge',
   '১০০ টোকেন উপহার পাঠানো হয়েছে 🎁': 'A gift of 100 tokens was sent 🎁', 'উপহার পাঠিয়েছ': 'Gift sent', 'উপহার পেয়েছ 🎁': 'Gift received 🎁',
   'স্বাগত বোনাস 🎉': 'Welcome bonus 🎉', 'দৈনিক লগইন বোনাস': 'Daily login bonus', 'পোস্ট করার পুরস্কার': 'Post reward',
   'মন্তব্যের পুরস্কার': 'Comment reward', 'বন্ধু আমন্ত্রণের পুরস্কার': 'Friend invite reward', 'কুইজ পুরস্কার': 'Quiz reward',
@@ -411,6 +412,7 @@ const I18N_PATTERNS = [
   [/^(\d+) দিন$/, (m, n) => n + (n === '1' ? ' day' : ' days')], [/^🔥 লগইন স্ট্রিক: (\d+) দিন$/, (m, n) => '🔥 Login streak: ' + n + (n === '1' ? ' day' : ' days')],
   [/^(\d+)টি$/, '$1'],
   [/^📍 থাকেন (.+)$/, '📍 Lives in $1'], [/^🎂 জন্মদিন (.+)$/, '🎂 Birthday $1'], [/^🏠 নিজ শহর (.+)$/, '🏠 Hometown $1'],
+  [/^থাকেন (.+)$/, 'Lives in $1'], [/^জন্মদিন (.+)$/, 'Birthday $1'], [/^নিজ শহর (.+)$/, 'Hometown $1'], [/^ভাষা (.+)$/, 'Languages $1'], [/^শখ (.+)$/, 'Hobbies $1'],
   [/^❤️ (.+)$/, (m, v) => '❤️ ' + i18nVal(v)], [/^👤 (.+)$/, (m, v) => '👤 ' + i18nVal(v)],
   [/^🗣 ভাষা (.+)$/, '🗣 Languages $1'], [/^🎨 শখ (.+)$/, '🎨 Hobbies $1'],
   [/^(.+) রক্ত দরকার$/, '$1 blood needed'],
@@ -607,7 +609,7 @@ function go(v, arg){
      quiz: renderQuiz, leaderboard: renderLeaderboard, achieve: renderAchievements, creator: renderCreator,
      albums: renderAlbums, pages: renderPages, events: renderEvents, service: renderService, market: renderMarket,
      gov: renderGov, habits: renderHabits, pets: renderPets, anon: renderAnon, closefriends: renderCloseFriends,
-     archived: renderArchived, themes: renderThemes, videos: renderVideos, viewers: renderViewers }[v] || renderFeed)(arg);
+     archived: renderArchived, themes: renderThemes, videos: renderVideos, viewers: renderViewers, admin: renderAdmin }[v] || renderFeed)(arg);
 }
 
 /* ---------- AUTH ---------- */
@@ -1772,8 +1774,8 @@ async function renderProfile(uid){
     <div class="seclabel">পরিচিতি</div>
     <div class="card" style="padding:12px 15px">
       ${p.bio ? `<p style="font-size:14px;line-height:1.65;margin-bottom:8px">${esc(p.bio)}</p>` : ''}
-      ${[['💼', p.work], ['🎓', p.education], ['📍 থাকেন', p.city], ['🏠 নিজ শহর', p.hometown], ['❤️', p.relationship], ['🎂 জন্মদিন', p.birthday], ['👤', p.gender], ['🗣 ভাষা', p.languages], ['🎨 শখ', p.hobbies]].filter(r => r[1]).map(r => `<div style="font-size:13.5px;padding:3px 0;color:var(--ink2)">${r[0]} ${esc(r[1])}</div>`).join('')}
-      ${p.website ? `<div style="font-size:13.5px;padding:3px 0">🌐 <a class="tag" target="_blank" rel="noopener" href="${esc(/^https?:\/\//i.test(p.website) ? p.website : 'https://' + p.website)}">${esc(p.website)}</a></div>` : ''}
+      ${[['briefcase', '', p.work], ['grad', '', p.education], ['pinLoc', 'থাকেন', p.city], ['home', 'নিজ শহর', p.hometown], ['heart', '', p.relationship], ['calendar', 'জন্মদিন', p.birthday], ['user', '', p.gender], ['type', 'ভাষা', p.languages], ['palette', 'শখ', p.hobbies]].filter(r => r[2]).map(r => `<div style="font-size:13.5px;padding:3px 0;color:var(--ink2);display:flex;align-items:center;gap:7px"><span style="color:var(--acc);display:inline-flex">${ic(r[0], 15)}</span><span>${r[1] ? r[1] + ' ' : ''}${esc(r[2])}</span></div>`).join('')}
+      ${p.website ? `<div style="font-size:13.5px;padding:3px 0;display:flex;align-items:center;gap:7px"><span style="color:var(--acc);display:inline-flex">${ic('globe', 15)}</span><a class="tag" target="_blank" rel="noopener" href="${esc(/^https?:\/\//i.test(p.website) ? p.website : 'https://' + p.website)}">${esc(p.website)}</a></div>` : ''}
       <div style="font-size:13.5px;padding:3px 0;color:var(--ink2)">📅 যোগ দিয়েছেন ${new Date(p.created_at).toLocaleDateString(LANG === 'en' ? 'en-US' : 'bn-BD', { month: 'long', year: 'numeric' })}</div>
       ${mine && !p.work && !p.education && !p.hometown ? `<button class="btn ghost sm" style="margin-top:8px" onclick="editProfile()">+ পরিচিতি যোগ করো</button>` : ''}
     </div>
@@ -2084,6 +2086,50 @@ function toggleLocal(key, label){
   toast(label + (!on ? ' চালু হয়েছে' : ' বন্ধ হয়েছে'));
   renderSettings();
 }
+async function renderAdmin(){
+  if (!me.is_admin) { go('feed'); return; }
+  curView = 'admin'; renderShell();
+  view().innerHTML = `<div class="view"><div style="padding:14px 16px 0;font-size:18px;font-weight:800">${ic('shield', 19)} অ্যাডমিন ড্যাশবোর্ড</div><div class="empty">লোড হচ্ছে...</div></div>`;
+  const [u, p, r] = await Promise.all([
+    sb.from('profiles').select('id', { count: 'exact', head: true }),
+    sb.from('posts').select('id', { count: 'exact', head: true }),
+    sb.from('reports').select('id', { count: 'exact', head: true })
+  ]);
+  const { data: reps } = await sb.from('reports').select('*').order('created_at', { ascending: false }).limit(50);
+  await cacheProfiles((reps || []).map(x => x.reporter));
+  const { data: users } = await sb.from('profiles').select('*').order('created_at', { ascending: false }).limit(30);
+  (users || []).forEach(x => { profilesCache[x.id] = x; });
+  view().innerHTML = `<div class="view">
+    <div style="padding:14px 16px 0;font-size:18px;font-weight:800">${ic('shield', 19)} অ্যাডমিন ড্যাশবোর্ড</div>
+    <div class="stats" style="margin-top:12px"><div><b>${bn(u.count || 0)}</b><small>মোট ব্যবহারকারী</small></div><div><b>${bn(p.count || 0)}</b><small>মোট পোস্ট</small></div><div><b>${bn(r.count || 0)}</b><small>রিপোর্ট</small></div></div>
+    <div class="seclabel">রিপোর্টসমূহ</div>
+    <div class="card" style="padding:6px 15px">${(reps || []).length ? reps.map(x => { const rp = prof(x.reporter); return `<div style="padding:9px 0;border-bottom:1px solid var(--line2)">
+      <div style="font-size:13.5px"><b>${esc(rp.name)}</b> <span style="color:var(--mut)">· ${timeAgo(x.created_at)}</span></div>
+      <div style="font-size:13px;color:var(--mut);margin:2px 0 7px">${x.target_type === 'post' ? 'একটি পোস্টে' : 'একজন ব্যবহারকারীর বিরুদ্ধে'} রিপোর্ট${x.reason ? ' — ' + esc(x.reason) : ''}</div>
+      <div style="display:flex;gap:7px;flex-wrap:wrap">
+        ${x.target_type === 'post' ? `<button class="btn ghost sm" onclick="viewPost('${x.target_id}')">পোস্টটি দেখো</button><button class="btn sm" style="background:var(--danger)" onclick="adminDeletePost('${x.id}','${x.target_id}')">পোস্ট মুছো</button>` : `<button class="btn ghost sm" onclick="goProfile('${x.target_id}')">প্রোফাইল দেখো</button>`}
+        <button class="btn ghost sm" onclick="adminDismiss('${x.id}')">রিপোর্ট বাতিল</button>
+      </div></div>`; }).join('') : '<div class="empty">কোনো রিপোর্ট নেই</div>'}</div>
+    <div class="seclabel">ব্যবহারকারী</div>
+    <div class="card" style="padding:6px 15px">${(users || []).map(x => userRow(x, `<span style="display:flex;gap:6px"><button class="btn ${x.verified ? '' : 'ghost'} sm" onclick="adminToggle('${x.id}','verified',${!!x.verified})">${x.verified ? 'ভেরিফাইড' : 'ভেরিফাই করো'}</button><button class="btn ${x.badge ? '' : 'ghost'} sm" onclick="adminToggle('${x.id}','badge',${!!x.badge})">${x.badge ? 'ব্যাজ সরাও' : 'ব্যাজ দাও'}</button></span>`)).join('')}</div>
+  </div>`;
+}
+async function adminToggle(uid, field, cur){
+  const { error } = await sb.from('profiles').update({ [field]: !cur }).eq('id', uid);
+  if (error) { toast('করা যায়নি'); return; }
+  if (profilesCache[uid]) profilesCache[uid][field] = !cur;
+  toast('হয়ে গেছে ✓'); renderAdmin();
+}
+async function adminDeletePost(repId, postId){
+  const { error } = await sb.from('posts').delete().eq('id', postId);
+  if (error) { toast('মোছা যায়নি'); return; }
+  await sb.from('reports').delete().eq('id', repId);
+  toast('পোস্ট মোছা হয়েছে'); renderAdmin();
+}
+async function adminDismiss(repId){
+  await sb.from('reports').delete().eq('id', repId);
+  toast('রিপোর্ট বাতিল হয়েছে'); renderAdmin();
+}
 async function renderSettings(){
   curView = 'settings'; renderShell();
   const { data: fresh } = await sb.from('profiles').select('tokens').eq('id', me.id).single();
@@ -2096,6 +2142,7 @@ async function renderSettings(){
       <div style="flex:1;min-width:0"><b style="font-size:16.5px">${esc(me.name)}</b>${badges(me)}<br><small style="color:var(--mut)">${me.username ? '@' + esc(me.username) + ' · ' : ''}${ic('wallet', 13)} <span>${bn(me.tokens)} টোকেন</span> · ${ic('fire', 13)} <span>${bn(me.login_streak || 0)} দিনের স্ট্রিক</span></small></div>
       <button class="btn sm" onclick="renderProfile('${me.id}')">প্রোফাইল</button>
     </div>
+    ${me.is_admin ? `<div class="card" style="padding:6px 15px"><button class="menu-item" onclick="go('admin')">${ic('shield', 17)} অ্যাডমিন ড্যাশবোর্ড</button></div>` : ''}
     <div class="seclabel">আমার জিনিস</div>
     <div class="card" style="padding:6px 15px">
       <button class="menu-item" onclick="editProfile()">${ic('edit')} প্রোফাইল এডিট</button>
@@ -2215,7 +2262,7 @@ async function renderTokens(){
     <div class="card" style="padding:6px 15px">
       <div class="earn"><span class="eic">${ic('rocket', 20)}</span><div><b>পোস্ট বুস্ট</b><small>নিজের পোস্টের ⋯ মেনু থেকে, ২৪ ঘণ্টা সবার উপরে</small></div><span class="minus">৫০</span></div>
       <div class="earn"><span class="eic">${ic('gift', 20)}</span><div><b>বন্ধুকে উপহার</b><small>বন্ধুর প্রোফাইল থেকে পাঠাও</small></div><span class="minus">১০০</span></div>
-      <div class="earn"><span class="eic">◆</span><div><b>প্রিমিয়াম ব্যাজ</b><small>নামের পাশে সোনালি ব্যাজ ${me.badge ? '— তোমার আছে ✓' : ''}</small></div>${me.badge ? '' : `<button class="btn sm" onclick="buyBadge()">২০০ দিয়ে কেনো</button>`}</div>
+      <div class="earn"><span class="eic" style="background:linear-gradient(135deg,#F59E0B,#FBBF24);color:#fff">${CROWN.replace('width="10" height="10"', 'width="15" height="15"')}</span><div><b>প্রিমিয়াম ব্যাজ</b><small>নামের পাশে সোনালি ব্যাজ ${me.badge ? '— তোমার আছে ✓' : ''}</small></div>${me.badge ? '' : `<button class="btn sm" onclick="buyBadge()">২০০ দিয়ে কেনো</button>`}</div>
     </div>
     <div class="seclabel">ইতিহাস</div>
     <div class="card" id="txnList" style="padding:6px 15px"><div class="empty">লোড হচ্ছে...</div></div></div>`;
@@ -2225,7 +2272,7 @@ async function renderTokens(){
 async function buyBadge(){
   const { error } = await sb.rpc('rpc_spend', { p_item: 'badge', p_target: null });
   if (error) { toast('টোকেন যথেষ্ট নেই (লাগবে ২০০)'); return; }
-  me.badge = true; me.tokens -= 200; toast('অভিনন্দন! প্রিমিয়াম ব্যাজ পেয়ে গেছ ◆'); renderTokens();
+  me.badge = true; me.tokens -= 200; toast('অভিনন্দন! প্রিমিয়াম ব্যাজ পেয়ে গেছ 👑'); renderTokens();
 }
 
 /* ---------- DATING : মনের মানুষ ---------- */
