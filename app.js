@@ -198,6 +198,7 @@ const QUIZ_BANK = [
   { q: 'আলো বছরে কত দূরত্ব অতিক্রম করে (আনুমানিক)?', o: ['৯.৫ লক্ষ কোটি কিমি', '১৫ কোটি কিমি', '৩ লক্ষ কিমি', '১০০ কোটি কিমি'], a: 0 }
 ];
 async function renderQuiz(){
+  toast('কুইজ আপাতত বন্ধ আছে'); go('feed'); return;
   curView = 'quiz'; renderShell();
   const day = Math.floor(Date.now() / 864e5);
   const item = QUIZ_BANK[day % QUIZ_BANK.length];
@@ -1082,7 +1083,6 @@ async function renderFeed(tagFilter = null){
     <div style="display:flex;gap:8px;padding:12px 12px 0">
       <button class="btn ghost sm" style="flex:1" onclick="go('groups')">👥 গ্রুপ</button>
       ${localStorage.getItem('adda-kid') === '1' ? '' : `<button class="btn ghost sm" style="flex:1" onclick="go('dating')">💘 মনের মানুষ</button>`}
-      <button class="btn ghost sm" style="flex:1" onclick="go('quiz')">🧠 কুইজ</button>
     </div>
     <div style="display:flex;gap:8px;padding:8px 12px 0">
       <button class="btn ghost sm" style="flex:1" onclick="go('market')">🛍 বাজার</button>
@@ -1566,7 +1566,6 @@ async function renderSettings(){
     </div>
     <div class="seclabel">মজা ও শেখা</div>
     <div class="card" style="padding:6px 15px">
-      <button class="menu-item" onclick="go('quiz')">🧠 আজকের কুইজ</button>
       <button class="menu-item" onclick="go('leaderboard')">🏆 লিডারবোর্ড</button>
       <button class="menu-item" onclick="go('achieve')">🎖 আমার অর্জন</button>
       <button class="menu-item" onclick="go('creator')">📊 ক্রিয়েটর ড্যাশবোর্ড</button>
